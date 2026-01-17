@@ -1,0 +1,100 @@
+[build-system]
+requires = ["setuptools>=80", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.package-data]
+kivoll_worker = ["py.typed", "defaults/*.json", "storage/migrations/*.sql"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[project]
+name = "kivoll_worker"
+dynamic = ["version"]
+authors = [
+    { name="Qrashi", email="fritz@vibe.ac" },
+]
+description = "Analyze occupation data from Kletterzentrum Innsbruck"
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+dependencies = [
+    "argparse>=1.4.0",
+    "cliasi>=0.4.2",
+    "numpy>=2.2.6",
+    "openmeteo-requests>=1.7.4",
+    "pandas>=2.3.3",
+    "requests>=2.32.5",
+    "singlejson>=0.5.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/Qrashi/kivoll"
+Issues = "https://github.com/Qrashi/kivoll/issues"
+Documentation = "https://qrashi.github.io/kivoll/"
+
+[project.scripts]
+kivoll-scheduler = "kivoll_worker.schedule:main"
+kivoll-scrape = "kivoll_worker.scraper:main"
+kivoll-predict = "kivoll_worker.predict:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["kivoll_worker*"]
+
+[tool.setuptools_scm]
+write_to = "src/kivoll_worker/__about__.py"
+fallback_version = "0+unknown"
+
+[dependency-groups]
+test = [
+    "mypy>=1.19.1",
+    "pytest>=9.0.2",
+    "ruff>=0.14.10",
+]
+docs = [
+    "sphinx-substitution-extensions>=2025.12.15",
+    "sphinx>=7",
+    "furo>=2024.1.29",
+]
+dev = [
+    {include-group = "test"},
+    {include-group = "docs"},
+    "pre-commit>=4.5.1",
+    "types-requests>=2.32.4.20260107",
+]
+
+[tool.ruff]
+target-version = "py310"
+src = ["src", "tests"]
+exclude = ["**/__about__.py", "docs"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "S101",  # use of assert
+    "PLR2004",  # magic values
+    "D",  # docstrings
+    "E501"
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.mypy]
+strict = true
+python_version = "3.10"
+
+[[tool.mypy.overrides]]
+module = [
+    "openmeteo_requests",
+    "openmeteo_requests.*",
+    "openmeteo_sdk",
+    "openmeteo_sdk.*",
+]
+follow_untyped_imports = true

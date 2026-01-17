@@ -1,0 +1,52 @@
+{
+  "file": {
+    "version": 1,
+    "migrations": []
+  },
+  "paths": {
+    "data": "./data"
+  },
+  "modules": {
+    "weather": {
+      "url": "https://api.open-meteo.com/v1/forecast",
+      "locations": {
+        "kletterzentrum": {
+          "latitude": 47.27681,
+          "longitude": 11.413439,
+          "enabled": true
+        }
+      },
+      "parameters": {
+        "daily": [
+          "apparent_temperature_max",
+          "apparent_temperature_min",
+          "sunshine_duration",
+          "precipitation_hours",
+          "rain_sum"
+        ],
+        "hourly": [
+          "apparent_temperature",
+          "precipitation_probability",
+          "precipitation",
+          "snowfall",
+          "visibility",
+          "snow_depth",
+          "cloud_cover",
+          "wind_speed_10m",
+          "temperature_2m"
+        ],
+        "current": [
+          "temperature_2m",
+          "apparent_temperature",
+          "cloud_cover"
+        ],
+        "timezone": "Europe/Berlin",
+        "forecast_days": 1
+      }
+    },
+    "web": {
+      "user_agent": "kivoll/%s (scraper) at gh.io/ignytex-labs/kivoll_worker",
+      "url": "https://www.kletterzentrum-innsbruck.at/auslastung/"
+    }
+  }
+}
