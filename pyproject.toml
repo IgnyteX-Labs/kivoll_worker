@@ -13,11 +13,11 @@ addopts = "-ra"
 name = "kivoll_worker"
 dynamic = ["version"]
 authors = [
-    { name="Qrashi", email="fritz@vibe.ac" },
+    { name = "Qrashi", email = "fritz@vibe.ac" },
 ]
 description = "Analyze occupation data from Kletterzentrum Innsbruck"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
@@ -34,6 +34,7 @@ dependencies = [
     "requests>=2.32.5",
     "singlejson>=0.5.2",
     "sqlalchemy>=2.0.45",
+    "psycopg[binary]>3.1"
 ]
 
 [project.urls]
@@ -66,8 +67,8 @@ docs = [
     "furo>=2024.1.29",
 ]
 dev = [
-    {include-group = "test"},
-    {include-group = "docs"},
+    { include-group = "test" },
+    { include-group = "docs" },
     "pre-commit>=4.5.1",
     "types-requests>=2.32.4.20260107",
 ]
@@ -79,9 +80,9 @@ exclude = ["**/__about__.py", "docs"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = [
-    "S101",  # use of assert
-    "PLR2004",  # magic values
-    "D",  # docstrings
+    "S101", # use of assert
+    "PLR2004", # magic values
+    "D", # docstrings
     "E501"
 ]
 
