@@ -6,7 +6,6 @@ importing `get_auslastung` for programmatic usage.
 
 import logging
 import re
-import sqlite3
 from argparse import Namespace
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,6 +14,8 @@ import requests
 from bs4 import BeautifulSoup
 from cliasi import Cliasi
 from requests import HTTPError
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 import kivoll_worker.storage
 
@@ -209,12 +210,6 @@ def kletterzentrum(args: Namespace) -> bool:
         html = _load_cached_html()
         cli.success("File read", logging.DEBUG)
     else:
-        ua = (
-            config.config()
-            .get("modules", {})
-            .get("kletterzentrum", {})
-            .get("user_agent", f"kivoll_worker-get-occupancy/{__short_version__}")
-        )
         ua = f"kivoll_worker-get-occupancy/{__short_version__}"
         if (
             "modules" in config.config()
@@ -287,23 +282,26 @@ def kletterzentrum(args: Namespace) -> bool:
     try:
         cli.log("Writing kletterzentrum values")
         database.execute(
-            """
+            text(
+                """
             INSERT INTO kletterzentrum_data
             (timestamp, overall, seil, boulder, open_sectors, total_sectors)
-            VALUES (strftime('%s','now'), ?, ?, ?, ?, ?)
-            """,
-            (
-                parsed.overall,
-                parsed.seil,
-                parsed.boulder,
-                parsed.open_sectors,
-                parsed.total_sectors,
+            VALUES (strftime('%s','now'),
+                    :overall, :seil, :boulder, :open_sectors, :total_sectors)
+            """
             ),
+            {
+                "overall": parsed.overall,
+                "seil": parsed.seil,
+                "boulder": parsed.boulder,
+                "open_sectors": parsed.open_sectors,
+                "total_sectors": parsed.total_sectors,
+            },
         )
         cli.log("Committing changes")
         database.commit()
         cli.success("Kletterzentrum data written to database", logging.DEBUG)
-    except sqlite3.Error as e:
+    except SQLAlchemyError as e:
         success = False
         log_error(e, "kletterzentrum:dbstore:sqlite", False)
         cli.fail(

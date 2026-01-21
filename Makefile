@@ -1,4 +1,4 @@
-.PHONY: install test lint format typecheck docs build clean check help
+.PHONY: install test lint format typecheck docs build clean check help deploy
 
 # Default target
 check: lint format typecheck test
@@ -14,6 +14,7 @@ help:
 	@echo "  build      Build the package"
 	@echo "  clean      Remove build artifacts"
 	@echo "  check      Run lint, formatting, typecheck, and test (default)"
+	@echo "  deploy     Deploy the application using Docker Compose"
 	@echo "  help       Show this help message"
 
 install:
@@ -49,3 +50,6 @@ clean:
 	rm -rf .pytest_cache/
 	rm -rf .ruff_cache/
 	find . -type d -name "__pycache__" -exec rm -rf {} +
+
+deploy:
+	docker compose -f deploy/docker-compose.yml up -d

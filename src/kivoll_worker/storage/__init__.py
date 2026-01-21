@@ -1,49 +1,67 @@
 from __future__ import annotations
 
 import logging
-import sqlite3
+import os
 from datetime import datetime
 from importlib.resources import files
 from pathlib import Path
 
 from cliasi import Cliasi
+from sqlalchemy import Connection, Engine, create_engine, text
 
 from ..common import config
 
 cli: Cliasi = Cliasi("uninitialized")
 
+db_url = os.environ.get("WORKER_DB_URL")
 
-def _ensure_migrations_table(conn: sqlite3.Connection) -> None:
+
+def _ensure_migrations_table(conn: Connection) -> None:
     conn.execute(
-        """
+        text("""
         CREATE TABLE IF NOT EXISTS migrations
         (
             id         TEXT PRIMARY KEY,
             filename   TEXT,
             applied_at TEXT
         );
-        """
+        """)
     )
 
 
 DATABASE_FILE = "kivoll.sqlite3"
 
+_engine: Engine | None = None
 
-def _get_applied_migrations(conn: sqlite3.Connection) -> set[str]:
-    cur = conn.execute("SELECT id FROM migrations")
+
+def _get_applied_migrations(conn: Connection) -> set[str]:
+    cur = conn.execute(text("SELECT id FROM migrations"))
     return {row[0] for row in cur.fetchall()}
 
 
-def _apply_migration(conn: sqlite3.Connection, migration: str, filepath: str) -> None:
+def _apply_migration(
+    conn: Connection, migration: str, filepath: str, name: str
+) -> None:
     if not migration.strip():
         cli.log(f"Skipping empty migration file {filepath}")
         return
     cli.log(f"Applying SQL migration {filepath}")
     try:
-        conn.executescript(migration)
+        for statement in migration.split(";"):
+            stmt = statement.strip()
+            if not stmt:
+                continue
+            conn.execute(text(stmt))
         conn.execute(
-            "INSERT INTO migrations (id, filename, applied_at) VALUES (?, ?, ?)",
-            (filepath, filepath, datetime.now().isoformat()),
+            text(
+                "INSERT INTO migrations (id, filename, applied_at) "
+                "VALUES (:filepath, :name, :applied_at)"
+            ),
+            {
+                "filepath": filepath,
+                "name": name,
+                "applied_at": datetime.now().isoformat(),
+            },
         )
         conn.commit()
         cli.success(f"Applied migration {filepath}")
@@ -53,7 +71,7 @@ def _apply_migration(conn: sqlite3.Connection, migration: str, filepath: str) ->
         raise
 
 
-def _apply_migrations(conn: sqlite3.Connection) -> None:
+def _apply_migrations(conn: Connection) -> None:
     """Apply all .sql migrations from the storage/migrations directory.
     storage/migrations is packaged with the kivoll_worker application.
 
@@ -78,10 +96,12 @@ def _apply_migrations(conn: sqlite3.Connection) -> None:
     for migration in migrations:
         pathhelper = Path(migration.name)
         cli.log(f"Processing migration file {migration.name}")
-        if pathhelper.stem in applied:
+        if str(pathhelper) in applied:
             cli.log(f"Migration {pathhelper.stem} already applied, skipping")
             continue
-        _apply_migration(conn, migration.read_text(encoding="utf-8"), pathhelper.stem)
+        _apply_migration(
+            conn, migration.read_text(encoding="utf-8"), migration.name, pathhelper.stem
+        )
     cli.success("All migrations processed", verbosity=logging.DEBUG)
 
 
@@ -90,7 +110,7 @@ def init_db() -> None:
     global cli
     cli = Cliasi("DB")
     cli.log("Connecting to DB")
-    conn = sqlite3.connect(str(config.data_dir() / DATABASE_FILE))
+    conn = connect()
     try:
         cli.log("Applying pending migrations (if any)")
         _apply_migrations(conn)
@@ -99,9 +119,19 @@ def init_db() -> None:
         conn.close()
 
 
-def connect() -> sqlite3.Connection:
+def _ensure_engine() -> Engine:
+    global _engine
+    if _engine is None:
+        _engine = create_engine(
+            db_url if db_url else "sqlite:///" + str(config.data_dir() / DATABASE_FILE)
+        )
+    return _engine
+
+
+def connect() -> Connection:
     """Get a new DB connection."""
-    return sqlite3.connect(str(config.data_dir() / DATABASE_FILE))
+
+    return _ensure_engine().connect()
 
 
 # Minimal public API

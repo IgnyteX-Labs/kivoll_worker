@@ -140,8 +140,6 @@ CREATE INDEX IF NOT EXISTS idx_weather_current_timestamp ON weather_current (tim
 -- static weather parameters table (compatible parameters list)
 -- =========================
 
-BEGIN TRANSACTION;
-
 CREATE TABLE IF NOT EXISTS weather_parameters
 (
     name        TEXT NOT NULL,
@@ -259,6 +257,4 @@ VALUES ('temperature_2m', 'current', '°C', 'Current air temperature'),
        ('wind_speed_10m', 'current', 'km/h', 'Current wind speed'),
        ('wind_direction_10m', 'current', '°', 'Current wind direction'),
        ('wind_gusts_10m', 'current', 'km/h', 'Current wind gusts');
-
-COMMIT;
 

@@ -11,6 +11,9 @@ import openmeteo_requests
 from cliasi import Cliasi
 from openmeteo_requests import OpenMeteoRequestsError
 from openmeteo_sdk.WeatherApiResponse import WeatherApiResponse
+from sqlalchemy import Connection, MetaData, Table, text
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.exc import SQLAlchemyError
 
 import kivoll_worker.storage
 
@@ -23,6 +26,8 @@ Resolution = Literal["hourly", "daily", "current"]
 
 # Module-level cache for valid columns, loaded from database on first access
 _columns_cache: dict[Resolution, frozenset[str]] = {}
+# Cache reflected weather tables keyed by resolution to avoid re-reflection on long runs
+_table_cache: dict[Resolution, Table] = {}
 
 
 def _is_close(a: float, b: float) -> bool:
@@ -320,7 +325,7 @@ def weather() -> bool:
                 False,
             )
             success = False
-    except sqlite3.Error as e:
+    except SQLAlchemyError as e:
         success = False
         log_error(e, "weather:dbstore:sqlite", False)
         cli.fail(
@@ -352,7 +357,7 @@ def _load_columns_from_db() -> None:
 
     conn = kivoll_worker.storage.connect()
     try:
-        cursor = conn.execute("SELECT name, resolution FROM weather_parameters")
+        cursor = conn.execute(text("SELECT name, resolution FROM weather_parameters"))
         rows = cursor.fetchall()
     except sqlite3.Error as e:
         log_error(e, "weather:validate:cache:load_from_db", False)
@@ -382,6 +387,17 @@ def _load_columns_from_db() -> None:
         "daily": frozenset(daily),
         "current": frozenset(current),
     }
+
+
+def _get_weather_table(conn: Connection, resolution: Resolution) -> Table:
+    """Reflect and cache the weather table for the given resolution."""
+    if resolution in _table_cache:
+        return _table_cache[resolution]
+
+    metadata = MetaData()
+    table = Table(f"weather_{resolution}", metadata, autoload_with=conn)
+    _table_cache[resolution] = table
+    return table
 
 
 def get_valid_columns(resolution: Resolution) -> frozenset[str]:
@@ -422,7 +438,7 @@ def validate_parameters(
 
 
 def insert_weather_data(
-    conn: sqlite3.Connection,
+    conn: Connection,
     resolution: Resolution,
     location: str,
     timestamps: list[int],
@@ -430,7 +446,7 @@ def insert_weather_data(
     param_values: Sequence[Any],
 ) -> bool:
     """
-    Insert weather data rows for a given resolution.
+    Insert weather data rows for a given resolution using SQLAlchemy Core.
 
     :param conn: SQLite database connection
     :param resolution: One of 'hourly', 'daily', 'current'
@@ -441,6 +457,7 @@ def insert_weather_data(
     :return: Success status as boolean
     """
     valid_columns = get_valid_columns(resolution)
+    # Only keep parameters that match the DB schema so invalid config entries are ignored
     valid_indices = [i for i, name in enumerate(param_names) if name in valid_columns]
     valid_names = [param_names[i] for i in valid_indices]
     valid_arrays = [param_values[i] for i in valid_indices]
@@ -448,32 +465,48 @@ def insert_weather_data(
     if not valid_names:
         return False
 
-    table = "weather_" + resolution
-    columns = ["timestamp", "location"] + valid_names
-    placeholders = ", ".join(["?"] * len(columns))
-    sql = (
-        f"INSERT OR REPLACE INTO {table} ({', '.join(columns)}) VALUES ({placeholders})"
+    table = _get_weather_table(conn, resolution)
+    # Build a single upsert statement; update only the columns we accept from config
+    # and reuse the reflected table from cache to avoid repeated introspection.
+    insert_stmt = sqlite_insert(table)
+    stmt = insert_stmt.on_conflict_do_update(
+        index_elements=[table.c.timestamp, table.c.location],
+        set_={name: getattr(insert_stmt.excluded, name) for name in valid_names},
     )
 
+    rows: list[dict[str, Any]] = []
     for idx, ts in enumerate(timestamps):
-        # Handle both single values (current) and arrays (hourly/daily)
+        # Current resolution provides single scalar values;
+        # other resolutions provide indexed arrays
         if resolution == "current":
-            row_values = [
-                float(val) if val is not None else None for val in valid_arrays
-            ]
+            raw_values = list(valid_arrays)
         else:
-            row_values = [
-                float(arr[idx]) if arr[idx] is not None else None
-                for arr in valid_arrays
-            ]
-        try:
-            conn.execute(sql, [ts, location] + row_values)
-        except sqlite3.Error as e:
-            log_error(e, "weather:dbstore:insert_row:" + resolution, False)
-            cli.fail(
-                f"Could not insert {resolution} weather data row for {location}"
-                f" at {ts}!\nError: {e}",
-                messages_stay_in_one_line=False,
-            )
-            return False
+            raw_values = [arr[idx] if arr is not None else None for arr in valid_arrays]
+
+        if len(raw_values) < len(valid_names):
+            raw_values.extend([None] * (len(valid_names) - len(raw_values)))
+
+        row: dict[str, Any] = {"timestamp": ts, "location": location}
+        row.update(
+            {
+                # Cast to float for SQLite compatibility while preserving NULLs
+                name: float(val) if val is not None else None
+                for name, val in zip(valid_names, raw_values, strict=False)
+            }
+        )
+        rows.append(row)
+
+    try:
+        # Execute all rows at once to benefit from SQLite's bulk upsert
+        conn.execute(stmt, rows)
+    except SQLAlchemyError as e:
+        log_error(e, "weather:dbstore:insert_row:" + resolution, False)
+        cli.fail(
+            (
+                f"Could not insert {resolution} weather data rows for {location}!"
+                f"\nError: {e}"
+            ),
+            messages_stay_in_one_line=False,
+        )
+        return False
     return True
