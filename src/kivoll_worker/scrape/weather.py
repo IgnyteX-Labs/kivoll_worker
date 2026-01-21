@@ -1,17 +1,16 @@
-"""
-Weather module date generation.
-"""
+"""Weather module date generation."""
 
 import logging
-import sqlite3
 from collections.abc import Sequence
 from typing import Any, Literal
 
 import openmeteo_requests
+import sqlalchemy.sql.dml
 from cliasi import Cliasi
 from openmeteo_requests import OpenMeteoRequestsError
 from openmeteo_sdk.WeatherApiResponse import WeatherApiResponse
 from sqlalchemy import Connection, MetaData, Table, text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -337,8 +336,7 @@ def weather() -> bool:
         success = False
         log_error(e, "weather:dbstore:unknown", False)
         cli.fail(
-            f"An unexpected error occurred while storing kletterzentrum data!\n"
-            f"Error: {e}",
+            f"An unexpected error occurred while storing weather data!\nError: {e}",
             messages_stay_in_one_line=False,
         )
         database.rollback()
@@ -359,7 +357,7 @@ def _load_columns_from_db() -> None:
     try:
         cursor = conn.execute(text("SELECT name, resolution FROM weather_parameters"))
         rows = cursor.fetchall()
-    except sqlite3.Error as e:
+    except SQLAlchemyError as e:
         log_error(e, "weather:validate:cache:load_from_db", False)
         cli.fail(
             f"Could not load weather parameters from database: {e}",
@@ -448,7 +446,7 @@ def insert_weather_data(
     """
     Insert weather data rows for a given resolution using SQLAlchemy Core.
 
-    :param conn: SQLite database connection
+    :param conn: Database connection
     :param resolution: One of 'hourly', 'daily', 'current'
     :param location: Location name
     :param timestamps: List of Unix timestamps
@@ -457,7 +455,8 @@ def insert_weather_data(
     :return: Success status as boolean
     """
     valid_columns = get_valid_columns(resolution)
-    # Only keep parameters that match the DB schema so invalid config entries are ignored
+    # Only keep parameters that match the DB
+    # schema so invalid config entries are ignored
     valid_indices = [i for i, name in enumerate(param_names) if name in valid_columns]
     valid_names = [param_names[i] for i in valid_indices]
     valid_arrays = [param_values[i] for i in valid_indices]
@@ -466,9 +465,20 @@ def insert_weather_data(
         return False
 
     table = _get_weather_table(conn, resolution)
-    # Build a single upsert statement; update only the columns we accept from config
-    # and reuse the reflected table from cache to avoid repeated introspection.
-    insert_stmt = sqlite_insert(table)
+
+    dialect_name = conn.dialect.name
+    insert_stmt: sqlalchemy.sql.dml.Insert
+    if dialect_name == "sqlite":
+        insert_stmt = sqlite_insert(table)
+    elif dialect_name in {"postgresql", "postgres"}:
+        insert_stmt = pg_insert(table)
+    else:
+        e = RuntimeError(f"Unsupported database dialect for upsert: {dialect_name}")
+        log_error(e, "weather:dbstore:unsupported_dialect", False)
+        cli.fail(str(e), messages_stay_in_one_line=False)
+        return False
+
+    # Build a single upsert statement; update only the columns we accept from config.
     stmt = insert_stmt.on_conflict_do_update(
         index_elements=[table.c.timestamp, table.c.location],
         set_={name: getattr(insert_stmt.excluded, name) for name in valid_names},
@@ -497,7 +507,7 @@ def insert_weather_data(
         rows.append(row)
 
     try:
-        # Execute all rows at once to benefit from SQLite's bulk upsert
+        # Execute all rows at once to benefit from bulk upsert
         conn.execute(stmt, rows)
     except SQLAlchemyError as e:
         log_error(e, "weather:dbstore:insert_row:" + resolution, False)

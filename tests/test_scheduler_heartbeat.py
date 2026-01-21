@@ -8,7 +8,9 @@ class _DummyTrigger:
     def __init__(self, next_time: datetime | None) -> None:
         self._next_time = next_time
 
-    def get_next_fire_time(self, _now: datetime, _reference: datetime) -> datetime | None:
+    def get_next_fire_time(
+        self, _now: datetime, _reference: datetime
+    ) -> datetime | None:
         return self._next_time
 
 

@@ -16,7 +16,7 @@ DESIRED_JOBS = {
     "kletterzentrum": {
         "func": scrape,
         "trigger": "cron",
-        "hour": "9-22",
+        "hour": "9-21",
         "minute": "*/5",
     },
     "weather": {

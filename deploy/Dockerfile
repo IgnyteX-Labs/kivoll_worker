@@ -11,7 +11,7 @@ ARG GIT_REPO
 ARG GIT_BRANCH=main
 RUN git clone --depth 1 --branch ${GIT_BRANCH} ${GIT_REPO} .
 
-RUN uv sync --frozen
+RUN uv sync --no-dev --frozen
 
 
 # ---- Runtime ----
