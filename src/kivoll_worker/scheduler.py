@@ -9,9 +9,8 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 from cliasi import Cliasi
 
 from kivoll_worker.common.arguments import parse_manage_args
-from kivoll_worker.common.config import get_tz, data_dir
+from kivoll_worker.common.config import data_dir, get_tz
 from kivoll_worker.scraper import main as scrape
-
 
 DESIRED_JOBS = {
     "kletterzentrum": {
@@ -46,7 +45,9 @@ def schedule() -> int:
     cli = Cliasi("scheduler")
     scheduler = BlockingScheduler(timezone=get_tz(cli))
     cli.log("Connecting to job store")
-    scheduler.add_jobstore(SQLAlchemyJobStore(url=db_url if db_url else "sqlite:///data/jobs.sqlite3"))
+    scheduler.add_jobstore(
+        SQLAlchemyJobStore(url=db_url if db_url else "sqlite:///data/jobs.sqlite3")
+    )
     cli.log("Reconciling scheduled jobs")
     _reconcile_jobs(scheduler)
     scheduler.add_listener(
@@ -56,8 +57,8 @@ def schedule() -> int:
     next_run = min(
         job.trigger.get_next_fire_time(now, now) for job in scheduler.get_jobs()
     )
-    cli.success(
-        f"Scheduler initialized, next run at ~{next_run}",
+    cli.info(
+        f"Scheduler initializing, next run at ~{next_run}",
         messages_stay_in_one_line=False,
     )
     heartbeat(scheduler)
@@ -69,7 +70,11 @@ def heartbeat(
     scheduler: BlockingScheduler,
     event: apscheduler.events.SchedulerEvent | None = None,
 ) -> None:
-    now = dt.now(getattr(scheduler, "timezone", None)) if getattr(scheduler, "timezone", None) else dt.now()
+    now = (
+        dt.now(getattr(scheduler, "timezone", None))
+        if getattr(scheduler, "timezone", None)
+        else dt.now()
+    )
     candidates = [
         job.trigger.get_next_fire_time(now, now) for job in scheduler.get_jobs()
     ]

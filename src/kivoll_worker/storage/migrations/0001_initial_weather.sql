@@ -153,7 +153,7 @@ CREATE TABLE IF NOT EXISTS weather_parameters
 -- HOURLY WEATHER PARAMETERS
 -- =========================
 
-INSERT OR IGNORE INTO weather_parameters (name, resolution, unit, description)
+INSERT INTO weather_parameters (name, resolution, unit, description)
 VALUES ('temperature_2m', 'hourly', '°C', 'Air temperature at 2 meters above ground'),
        ('relative_humidity_2m', 'hourly', '%', 'Relative humidity at 2 meters'),
        ('dewpoint_2m', 'hourly', '°C', 'Dew point temperature at 2 meters'),
@@ -202,13 +202,14 @@ VALUES ('temperature_2m', 'hourly', '°C', 'Air temperature at 2 meters above gr
        ('soil_moisture_1_3cm', 'hourly', 'm³/m³', 'Soil moisture at 1–3 cm'),
        ('soil_moisture_3_9cm', 'hourly', 'm³/m³', 'Soil moisture at 3–9 cm'),
        ('soil_moisture_9_27cm', 'hourly', 'm³/m³', 'Soil moisture at 9–27 cm'),
-       ('soil_moisture_27_81cm', 'hourly', 'm³/m³', 'Soil moisture at 27–81 cm');
+       ('soil_moisture_27_81cm', 'hourly', 'm³/m³', 'Soil moisture at 27–81 cm')
+ON CONFLICT (name, resolution) DO NOTHING;
 
 -- =========================
 -- DAILY WEATHER PARAMETERS
 -- =========================
 
-INSERT OR IGNORE INTO weather_parameters (name, resolution, unit, description)
+INSERT INTO weather_parameters (name, resolution, unit, description)
 VALUES ('weathercode', 'daily', NULL, 'Daily weather condition code'),
        ('temperature_2m_max', 'daily', '°C', 'Maximum daily temperature at 2 meters'),
        ('temperature_2m_min', 'daily', '°C', 'Minimum daily temperature at 2 meters'),
@@ -235,13 +236,14 @@ VALUES ('weathercode', 'daily', NULL, 'Daily weather condition code'),
 
        ('shortwave_radiation_sum', 'daily', 'MJ/m²', 'Shortwave radiation sum'),
        ('et0_fao_evapotranspiration', 'daily', 'mm',
-        'Reference evapotranspiration (ET₀)');
+        'Reference evapotranspiration (ET₀)')
+ON CONFLICT (name, resolution) DO NOTHING;
 
 -- =========================
 -- CURRENT WEATHER PARAMETERS
 -- =========================
 
-INSERT OR IGNORE INTO weather_parameters (name, resolution, unit, description)
+INSERT INTO weather_parameters (name, resolution, unit, description)
 VALUES ('temperature_2m', 'current', '°C', 'Current air temperature'),
        ('relative_humidity_2m', 'current', '%', 'Current relative humidity'),
        ('apparent_temperature', 'current', '°C', 'Current apparent temperature'),
@@ -256,5 +258,5 @@ VALUES ('temperature_2m', 'current', '°C', 'Current air temperature'),
        ('surface_pressure', 'current', 'hPa', 'Current surface pressure'),
        ('wind_speed_10m', 'current', 'km/h', 'Current wind speed'),
        ('wind_direction_10m', 'current', '°', 'Current wind direction'),
-       ('wind_gusts_10m', 'current', 'km/h', 'Current wind gusts');
-
+       ('wind_gusts_10m', 'current', 'km/h', 'Current wind gusts')
+ON CONFLICT (name, resolution) DO NOTHING;
