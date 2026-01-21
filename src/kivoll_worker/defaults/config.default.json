@@ -6,6 +6,9 @@
   "paths": {
     "data": "./data"
   },
+  "general": {
+    "timezone": "Europe/Vienna"
+  },
   "modules": {
     "weather": {
       "url": "https://api.open-meteo.com/v1/forecast",
@@ -44,7 +47,7 @@
         "forecast_days": 1
       }
     },
-    "web": {
+    "kletterzentrum": {
       "user_agent": "kivoll/%s (scraper) at gh.io/ignytex-labs/kivoll_worker",
       "url": "https://www.kletterzentrum-innsbruck.at/auslastung/"
     }

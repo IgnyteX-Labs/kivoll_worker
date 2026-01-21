@@ -3,9 +3,11 @@ Config helpers for kivoll_worker.
 """
 
 import logging
+from datetime import datetime, tzinfo
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from cliasi import Cliasi
 from singlejson import JSONDeserializationError, JSONFile, load
@@ -55,7 +57,7 @@ def init_config(config_path: str) -> None:
     )
     # This will validate the default config but not load the file yet
     try:
-        _config.reload()
+        _config.reload(strict=True)
     except JSONDeserializationError:
         # We can only recover from malformed json
         # If the default is malformed we do not catch it and just display the error
@@ -79,7 +81,7 @@ def __default_config() -> None:
     cli.warn("Reverting to default config...")
     cli.animate_message_blocking(
         "Writing default config to disk...",
-        3,
+        5,
         message_right="[CTRL-C to cancel]",
     )
     _config.restore_default()
@@ -122,3 +124,15 @@ def __config_migrations() -> None:
         )
         __default_config()
         return
+
+
+def get_tz(cli: Cliasi) -> tzinfo | ZoneInfo | None:
+    tz_name = str(config().get("general", {}).get("timezone", "")).strip()
+    if not tz_name:
+        cli.warn("No scrape timezone configured, using local timezone")
+        return datetime.now().astimezone().tzinfo
+    try:
+        return ZoneInfo(tz_name)
+    except ZoneInfoNotFoundError:
+        cli.warn(f"Invalid timezone '{tz_name}', using local timezone")
+        return datetime.now().astimezone().tzinfo

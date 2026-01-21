@@ -7,6 +7,7 @@ importing `get_auslastung` for programmatic usage.
 import logging
 import re
 import sqlite3
+from argparse import Namespace
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -188,18 +189,19 @@ def _parse_html(html: str) -> KletterzentrumOccupancyData:
     return data
 
 
-def kletterzentrum(dry_run: bool) -> bool:
+def kletterzentrum(args: Namespace) -> bool:
     """
     Fetch occupancy data from the Kletterzentrum Innsbruck website.
 
-    :param dry_run:
+    :param args:
+        arguments passed to function (contains ``dry_run`` flag)
         If True, load HTML from a saved file instead of making a network request.
         If no file is available, will throw error
     :return bool indicating success
     """
     global cli
     cli = Cliasi("KI")
-    if dry_run:
+    if args.dry_run:
         cli.warn(
             "Using cached HTML (DRY RUN). Will not save data to database",
             messages_stay_in_one_line=False,
@@ -210,16 +212,16 @@ def kletterzentrum(dry_run: bool) -> bool:
         ua = (
             config.config()
             .get("modules", {})
-            .get("web", {})
+            .get("kletterzentrum", {})
             .get("user_agent", f"kivoll_worker-get-occupancy/{__short_version__}")
         )
         ua = f"kivoll_worker-get-occupancy/{__short_version__}"
         if (
             "modules" in config.config()
-            and "web" in config.config()["modules"]
-            and "user_agent" in config.config()["modules"]["web"]
+            and "kletterzentrum" in config.config()["modules"]
+            and "user_agent" in config.config()["modules"]["kletterzentrum"]
         ):
-            ua = config.config()["modules"]["web"]["user_agent"]
+            ua = config.config()["modules"]["kletterzentrum"]["user_agent"]
         else:
             cli.warn("Could not retrieve user agent to use (malformed config)")
             log_error(
@@ -232,10 +234,10 @@ def kletterzentrum(dry_run: bool) -> bool:
 
         if (
             "modules" in config.config()
-            and "web" in config.config()["modules"]
-            and "url" in config.config()["modules"]["web"]
+            and "kletterzentrum" in config.config()["modules"]
+            and "url" in config.config()["modules"]["kletterzentrum"]
         ):
-            url = config.config()["modules"]["web"]["url"]
+            url = config.config()["modules"]["kletterzentrum"]["url"]
         else:
             cli.fail("Could not retrieve url to use (malformed config)")
             log_error(
@@ -277,7 +279,7 @@ def kletterzentrum(dry_run: bool) -> bool:
     if not parsed:
         return False
 
-    if dry_run:
+    if args.dry_run:
         return True
     cli.log("Connecting to database")
     database = kivoll_worker.storage.connect()

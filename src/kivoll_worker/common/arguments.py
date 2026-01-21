@@ -76,6 +76,28 @@ def parse_scrape_args() -> argparse.Namespace:
         help="Do a dry run "
         "(don't request data from the website or run expensive actions)",
     )
+    parser.add_argument(
+        "--targets",
+        dest="targets",
+        type=str,
+        default=None,
+        help="Comma-separated scrape targets to run. Use 'all' to run all targets. "
+        "When omitted, selects targets that are marked open at the reference time.",
+    )
+    parser.add_argument(
+        "--time-of-day",
+        dest="time_of_day",
+        type=str,
+        default=None,
+        help="Run all targets that are open at specified (HH:MM) time",
+    )
+    parser.add_argument(
+        "--list-targets",
+        dest="list_targets",
+        action="store_true",
+        default=False,
+        help="List available targets and their respective open hours",
+    )
     return _parse_common_args(parser)
 
 

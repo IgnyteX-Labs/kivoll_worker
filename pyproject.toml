@@ -25,13 +25,15 @@ classifiers = [
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
 dependencies = [
+    "apscheduler>=3.11.2",
     "argparse>=1.4.0",
     "cliasi>=0.4.2",
     "numpy>=2.2.6",
-    "openmeteo-requests>=1.7.4",
+    "openmeteo-requests>=1.7.5",
     "pandas>=2.3.3",
     "requests>=2.32.5",
     "singlejson>=0.5.2",
+    "sqlalchemy>=2.0.45",
 ]
 
 [project.urls]
@@ -40,7 +42,7 @@ Issues = "https://github.com/Qrashi/kivoll/issues"
 Documentation = "https://qrashi.github.io/kivoll/"
 
 [project.scripts]
-kivoll-scheduler = "kivoll_worker.schedule:main"
+kivoll-schedule = "kivoll_worker.scheduler:main"
 kivoll-scrape = "kivoll_worker.scraper:main"
 kivoll-predict = "kivoll_worker.predict:main"
 
@@ -92,9 +94,14 @@ python_version = "3.10"
 
 [[tool.mypy.overrides]]
 module = [
-    "openmeteo_requests",
-    "openmeteo_requests.*",
     "openmeteo_sdk",
     "openmeteo_sdk.*",
 ]
 follow_untyped_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "apscheduler",
+    "apscheduler.*",
+]
+ignore_missing_imports = true
