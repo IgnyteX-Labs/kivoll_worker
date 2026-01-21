@@ -14,6 +14,7 @@ from ..common import config
 cli: Cliasi = Cliasi("uninitialized")
 
 db_url = os.environ.get("WORKER_DB_URL")
+db_name = os.environ.get("DB_NAME", "db")
 
 
 def _ensure_migrations_table(conn: Connection) -> None:
@@ -123,7 +124,9 @@ def _ensure_engine() -> Engine:
     global _engine
     if _engine is None:
         _engine = create_engine(
-            db_url if db_url else "sqlite:///" + str(config.data_dir() / DATABASE_FILE)
+            db_url % db_name
+            if db_url
+            else "sqlite:///" + str(config.data_dir() / DATABASE_FILE)
         )
     return _engine
 

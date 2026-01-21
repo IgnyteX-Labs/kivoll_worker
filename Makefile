@@ -1,4 +1,4 @@
-.PHONY: install test lint format typecheck docs build clean check help deploy test-postgres up-test-db down-test-db
+.PHONY: install test lint format typecheck docs build clean check help deploy test-postgres up-test-db down-test-db rebuild recreate down
 
 # Default target
 check: lint format typecheck test test-postgres
@@ -17,7 +17,7 @@ help:
 	@echo "  build          Build the package"
 	@echo "  clean          Remove build artifacts"
 	@echo "  check          Run lint, formatting, typecheck, and test (default)"
-	@echo "  deploy         Deploy the application using Docker Compose"
+	@echo "  deploy         Deploy the application using Docker Compose (local mode)"
 	@echo "  help           Show this help message"
 
 install:
@@ -55,7 +55,17 @@ clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} +
 
 deploy:
-	docker compose -f deploy/docker-compose.yml up -d
+	docker compose -f deploy/docker-compose.yml --profile local up -d
+
+rebuild:
+	docker compose -f deploy/docker-compose.yml --profile local up -d --build --force-recreate
+
+recreate:
+	docker rmi deploy-worker:latest
+	docker compose -f deploy/docker-compose.yml build --no-cache
+
+down:
+	docker compose -f deploy/docker-compose.yml down --volumes --remove-orphans
 
 up-test-db:
 	docker compose -f deploy/docker-compose.test.yml up -d --wait

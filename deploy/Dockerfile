@@ -28,4 +28,4 @@ RUN chmod +x /usr/local/bin/healthcheck.sh
 
 HEALTHCHECK --interval=1m --timeout=10s --start-period=2m --retries=3 CMD /usr/local/bin/healthcheck.sh
 
-CMD ["uv", "run", "kivoll-schedule"]
+CMD sh -c 'exec uv run kivoll-schedule $KIVOLL_EXTRA_OPTIONS'
