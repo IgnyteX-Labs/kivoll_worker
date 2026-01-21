@@ -28,7 +28,6 @@ DESIRED_JOBS = {
 }
 
 db_url = os.environ.get("SCHEDULER_DB_URL")
-db_name = os.environ.get("DB_NAME", "db")
 
 
 def main() -> int:
@@ -47,9 +46,7 @@ def schedule() -> int:
     scheduler = BlockingScheduler(timezone=get_tz(cli))
     cli.log("Connecting to job store")
     scheduler.add_jobstore(
-        SQLAlchemyJobStore(
-            url=db_url % db_name if db_url else "sqlite:///data/jobs.sqlite3"
-        )
+        SQLAlchemyJobStore(url=db_url if db_url else "sqlite:///data/jobs.sqlite3")
     )
     cli.log("Reconciling scheduled jobs")
     _reconcile_jobs(scheduler)

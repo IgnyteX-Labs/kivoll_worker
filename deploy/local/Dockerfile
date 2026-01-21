@@ -1,15 +1,13 @@
 # ---- Builder ----
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS builder
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends git ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
 
-ARG GIT_REPO
-ARG GIT_BRANCH=main
-RUN git clone --depth 1 --branch ${GIT_BRANCH} ${GIT_REPO} .
+# Copy local source code instead of cloning from git
+COPY . .
+
+# Remove data directory to ensure clean state
+RUN rm -rf data/
 
 RUN uv sync --no-dev --frozen
 
@@ -23,9 +21,9 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
 COPY --from=builder /app /app
-COPY deploy/healthcheck.sh /usr/local/bin/healthcheck.sh
+COPY deploy/common/healthcheck.sh /usr/local/bin/healthcheck.sh
 RUN chmod +x /usr/local/bin/healthcheck.sh
 
 HEALTHCHECK --interval=1m --timeout=10s --start-period=2m --retries=3 CMD /usr/local/bin/healthcheck.sh
 
-CMD sh -c 'exec uv run kivoll-schedule $KIVOLL_EXTRA_OPTIONS'
+CMD [ "uv", "run", "kivoll-schedule", "--verbose" ]
