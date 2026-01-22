@@ -38,8 +38,7 @@ To start the database run
 
 .. code-block:: bash
 
-    cd deploy/db
-    make up
+    make db-up
 
 This will start a PostgresSQL database on port 5432 with the default credentials specified in ``.env``
 
@@ -63,6 +62,11 @@ To run the application inside a docker container, you can use the provided Docke
 .. code-block:: bash
 
     make docker-build
-    make docker-run
+    make docker-shell
 
 This will build the docker image and run the container with the environment variables set from ``.env``.
+
+If you want to run the container in detached mode, you can use
+.. code-block:: bash
+
+    make docker-headless

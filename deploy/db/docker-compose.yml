@@ -1,17 +1,22 @@
+name: local-kivoll-db
+
 services:
-  db:
+  local-db:
     image: postgres:18
-    environment:
+    env_file:
       - ../.env
     volumes:
       - pgdata:/var/lib/postgresql
-      - ../db/initdb:/docker-entrypoint-initdb.d:ro
+      - ./initdb:/docker-entrypoint-initdb.d:ro
     restart: unless-stopped
     command: [ "postgres", "-c", "log_statement=all" ]
     ports:
       - "5432:5432"
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready" ]
+      test: [ "CMD-SHELL", "pg_isready -h localhost -U \"$${PGUSER}\" -d \"$${POSTGRES_DB}\"" ]
       interval: 10s
       timeout: 5s
       retries: 5
+
+volumes:
+  pgdata:

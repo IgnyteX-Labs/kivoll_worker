@@ -65,7 +65,9 @@ DESIRED_JOBS = {
 
 # Database URL for persistent job storage
 # In Docker, this is set via environment variable to use PostgreSQL
-db_url = os.environ.get("SCHEDULER_DB_URL")
+db_host = os.environ.get("DB_HOST")
+db_password = os.environ.get("SCHEDULER_DB_PASSWORD")
+db_driver = os.environ.get("DB_DRIVER")
 
 
 def main() -> int:
@@ -107,8 +109,20 @@ def schedule() -> int:
 
     # Connect to persistent job store (SQLite locally, PostgreSQL in Docker)
     cli.log("Connecting to job store")
+    cli.log(
+        "DB url: "
+        + (
+            f"postgresql+psycopg://scheduler:{db_password}@{db_host}/scheduler_db"
+            if db_host and db_password and db_driver == "postgresql"
+            else "sqlite:///data/jobs.sqlite3"
+        )
+    )
     scheduler.add_jobstore(
-        SQLAlchemyJobStore(url=db_url if db_url else "sqlite:///data/jobs.sqlite3")
+        SQLAlchemyJobStore(
+            url=f"postgresql+psycopg://scheduler:{db_password}@{db_host}/scheduler_db"
+            if db_host and db_password and db_driver == "postgresql"
+            else "sqlite:///data/jobs.sqlite3"
+        )
     )
 
     # Ensure all desired jobs exist and remove any stale ones

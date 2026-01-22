@@ -44,7 +44,9 @@ cli: Cliasi = Cliasi("uninitialized")
 
 # Database connection URL from environment (for Docker/production use)
 # Falls back to SQLite file in data directory if not set
-db_url = os.environ.get("WORKER_DB_URL")
+db_host = os.environ.get("DB_HOST")
+db_password = os.environ.get("WORKER_DB_PASSWORD")
+db_driver = os.environ.get("DB_DRIVER")
 
 # Default SQLite database filename
 DATABASE_FILE = "kivoll.sqlite3"
@@ -216,7 +218,9 @@ def _ensure_engine() -> Engine:
     global _engine
     if _engine is None:
         _engine = create_engine(
-            db_url if db_url else "sqlite:///" + str(config.data_dir() / DATABASE_FILE)
+            f"postgresql+psycopg://worker:{db_password}@{db_host}/worker_db"
+            if db_host and db_password and db_driver == "postgresql"
+            else "sqlite:///" + str(config.data_dir() / DATABASE_FILE)
         )
     return _engine
 
