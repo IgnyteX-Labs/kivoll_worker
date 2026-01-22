@@ -1,45 +1,48 @@
-.PHONY: install test test-cov lint format typecheck docs build clean check help up relaunch recreate down up-test-db down-test-db test-postgres test-docker
+.PHONY: install test test-cov lint format typecheck docs build clean check help docker-build docker-run docker-shell env up-test-db down-test-db test-postgres test-docker
 
-# Mode: local (default) or prod
-MODE ?= local
-COMPOSE_FILE := deploy/$(MODE)/docker-compose.yml
+# Docker image name
+DOCKER_IMAGE ?= kivoll_worker:latest
+DOCKER_CONTAINER ?= kivoll_worker
 
 # Default target
 check: lint format typecheck test-cov test test-postgres
 
 help:
-	@echo "Available targets:"
+	@echo "Running the application:"
 	@echo "  install        Install dependencies"
-	@echo "  test           Run tests (sqlite-only by default)"
-	@echo "  test-cov       Run tests with coverage report"
-	@echo "  test-postgres  Run Postgres integration tests via docker compose"
-	@echo "  test-docker    Run Docker build and integration tests"
-	@echo "  up-test-db     Start local Postgres for tests (port 5433)"
-	@echo "  down-test-db   Stop local Postgres for tests"
-	@echo "  lint           Run lint checks"
-	@echo "  typecheck      Run type checks"
-	@echo "  format         Run ruff formatting"
-	@echo "  docs           Build documentation"
+	@echo "  env            Open shell with .env environment loaded"
 	@echo "  build          Build the package"
 	@echo "  clean          Remove build artifacts"
 	@echo "  check          Run lint, formatting, typecheck, and test (default)"
 	@echo ""
-	@echo "Docker targets (MODE=local or prod, default: local):"
-	@echo "  up             Start containers"
-	@echo "  relaunch       Rebuild and restart containers (use for local code changes)"
-	@echo "  recreate       Full rebuild (--no-cache in prod for new git commits)"
-	@echo "  down           Stop and remove containers"
+	@echo "Code quality:"
+	@echo "  lint           Run lint checks"
+	@echo "  format         Run ruff formatting"
+	@echo "  typecheck      Run type checks"
 	@echo ""
-	@echo "  Note: For local development, use 'relaunch' to pick up code changes."
-	@echo "        Use 'recreate' only when dependencies change."
+	@echo "Docker targets:"
+	@echo "  docker-build   Build Docker image from deploy/Dockerfile (shortcut: up)"
+	@echo "  docker-run     Run Docker container with .env file"
+	@echo "  docker-shell   Open interactive shell in Docker container"
 	@echo ""
+	@echo "Testing:"
+	@echo "  test           Run tests (sqlite-only by default)"
+	@echo "  test-cov       Run tests with coverage report"
+	@echo "  test-postgres  Run Postgres integration tests"
+	@echo "  test-docker    Run Docker build and integration tests"
+	@echo "  up-test-db     Start local Postgres for tests (port 5433)"
+	@echo "  down-test-db   Stop local Postgres for tests"
+	@echo ""
+	@echo "Documentation:"
+	@echo "  docs           Build documentation"
 	@echo "  help           Show this help message"
 	@echo ""
-	@echo "Examples:"
-	@echo "  make up                 # Start local dev containers"
-	@echo "  make MODE=prod up       # Start production containers"
-	@echo "  make MODE=prod recreate # Full rebuild for production"
-	@echo "  make test-docker        # Run Docker integration tests locally"
+	@echo "Quick start:"
+	@echo "  1. make install                            # Install dependencies"
+	@echo "  2. cp deploy/.env.example deploy/.env      # Copy env template"
+	@echo "  3. Edit deploy/.env with your settings"
+	@echo "  4. make env                                # Open shell with env loaded"
+	@echo "     OR: make docker-build && make docker-run # Run in Docker"
 
 install:
 	uv sync --group dev
@@ -83,18 +86,48 @@ clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} +
 
 up:
-	docker compose -f $(COMPOSE_FILE) up -d
+	@echo "Building Docker image from deploy/Dockerfile..."
+	docker build -t $(DOCKER_IMAGE) -f deploy/Dockerfile .
 
-relaunch:
-	docker compose -f $(COMPOSE_FILE) up -d --build --force-recreate
+docker-build: up
 
-recreate:
-	docker compose -f $(COMPOSE_FILE) down --volumes --remove-orphans
-	docker compose -f $(COMPOSE_FILE) build --pull --no-cache
-	docker compose -f $(COMPOSE_FILE) up -d
+docker-run:
+	@if [ ! -f deploy/.env ]; then \
+		echo "Error: deploy/.env file not found!"; \
+		echo "Please copy deploy/.env.example to deploy/.env and update it with your settings."; \
+		exit 1; \
+	fi
+	@echo "Starting Docker container with .env configuration..."
+	docker run --rm \
+		--name $(DOCKER_CONTAINER) \
+		--env-file deploy/.env \
+		-v $(PWD)/data:/app/data \
+		$(DOCKER_IMAGE)
 
-down:
-	docker compose -f $(COMPOSE_FILE) down --volumes --remove-orphans
+docker-shell:
+	@if [ ! -f deploy/.env ]; then \
+		echo "Error: deploy/.env file not found!"; \
+		echo "Please copy deploy/.env.example to deploy/.env and update it with your settings."; \
+		exit 1; \
+	fi
+	@echo "Opening shell in Docker container..."
+	docker run --rm -it \
+		--name $(DOCKER_CONTAINER)-shell \
+		--env-file deploy/.env \
+		-v $(PWD)/data:/app/data \
+		--entrypoint /bin/bash \
+		$(DOCKER_IMAGE)
+
+env:
+	@if [ ! -f deploy/.env ]; then \
+		echo "Error: deploy/.env file not found!"; \
+		echo "Please copy deploy/.env.example to deploy/.env and update it with your settings."; \
+		exit 1; \
+	fi
+	@echo "Loading .env file into current shell..."
+	@echo "Environment variables from deploy/.env are now available."
+	@echo "Run commands like: uv run kivoll-schedule --verbose"
+	@set -a; . ./deploy/.env; set +a; $(SHELL)
 
 up-test-db:
 	docker compose -f deploy/test/docker-compose.yml up -d --wait

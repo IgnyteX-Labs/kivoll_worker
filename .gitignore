@@ -3,8 +3,7 @@
 src/kivoll_worker/__about__.py
 data/
 
-deploy/.env.admin
-deploy/.env.worker
+deploy/.env
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

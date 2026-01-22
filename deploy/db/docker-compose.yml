@@ -1,0 +1,17 @@
+services:
+  db:
+    image: postgres:18
+    environment:
+      - ../.env
+    volumes:
+      - pgdata:/var/lib/postgresql
+      - ../db/initdb:/docker-entrypoint-initdb.d:ro
+    restart: unless-stopped
+    command: [ "postgres", "-c", "log_statement=all" ]
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
