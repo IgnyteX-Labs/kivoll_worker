@@ -1,6 +1,7 @@
 """Weather module date generation."""
 
 import logging
+import time
 from collections.abc import Sequence
 from typing import Any, Literal
 
@@ -171,6 +172,7 @@ def weather() -> bool:
 
     cli.log("Writing to database")
     database = kivoll_worker.storage.connect()
+    fetch_time = int(time.time())  # Capture once for all inserts in this fetch
     success = True
     saved = 0
     try:
@@ -217,7 +219,7 @@ def weather() -> bool:
                         messages_stay_in_one_line=False,
                     )
                     continue
-                current_timestamp = current.Time()
+                observed_at = current.Time()  # API's observation timestamp
                 current_values = [
                     var.Value()
                     for idx in range(len(valid_current))
@@ -227,9 +229,11 @@ def weather() -> bool:
                     database,
                     "current",
                     location_name,
-                    [current_timestamp],
+                    [fetch_time],  # fetched_at as the timestamp list
                     valid_current,
                     current_values,
+                    fetched_at=fetch_time,
+                    observed_at=observed_at,
                 )
                 cli.log(f"Inserted current weather data for {location_name}")
 
@@ -264,6 +268,7 @@ def weather() -> bool:
                     hourly_timestamps,
                     valid_hourly,
                     hourly_arrays,
+                    fetched_at=fetch_time,
                 )
                 cli.log(
                     f"Inserted {len(hourly_timestamps)} hourly rows for {location_name}"
@@ -300,6 +305,7 @@ def weather() -> bool:
                     daily_timestamps,
                     valid_daily,
                     daily_arrays,
+                    fetched_at=fetch_time,
                 )
                 cli.log(
                     f"Inserted {len(daily_timestamps)} daily rows for {location_name}"
@@ -442,6 +448,8 @@ def insert_weather_data(
     timestamps: list[int],
     param_names: list[str],
     param_values: Sequence[Any],
+    fetched_at: int | None = None,
+    observed_at: int | None = None,
 ) -> bool:
     """
     Insert weather data rows for a given resolution using SQLAlchemy Core.
@@ -449,9 +457,13 @@ def insert_weather_data(
     :param conn: Database connection
     :param resolution: One of 'hourly', 'daily', 'current'
     :param location: Location name
-    :param timestamps: List of Unix timestamps
+    :param timestamps: List of Unix timestamps (forecast_time for hourly/daily,
+                       fetched_at for current)
     :param param_names: List of parameter names (in order)
     :param param_values: List of values or numpy arrays (same order as param_names)
+    :param fetched_at: When this data was fetched (required for hourly/daily,
+                       used for current)
+    :param observed_at: API's observation timestamp (only for current)
     :return: Success status as boolean
     """
     valid_columns = get_valid_columns(resolution)
@@ -478,11 +490,30 @@ def insert_weather_data(
         cli.fail(str(e), messages_stay_in_one_line=False)
         return False
 
-    # Build a single upsert statement; update only the columns we accept from config.
-    stmt = insert_stmt.on_conflict_do_update(
-        index_elements=[table.c.timestamp, table.c.location],
-        set_={name: getattr(insert_stmt.excluded, name) for name in valid_names},
-    )
+    # Build insert statement with conflict handling based on resolution
+    # For hourly/daily: new composite key includes fetched_at, so conflicts are rare
+    # (only if same fetch runs twice in same second). Use DO NOTHING to ignore dupes.
+    # For current: fetched_at is the primary timestamp, same logic applies.
+    if resolution == "current":
+        stmt = insert_stmt.on_conflict_do_nothing(
+            index_elements=[table.c.fetched_at, table.c.location],
+        )
+    elif resolution == "hourly":
+        stmt = insert_stmt.on_conflict_do_nothing(
+            index_elements=[
+                table.c.forecast_time,
+                table.c.location,
+                table.c.fetched_at,
+            ],
+        )
+    else:  # daily
+        stmt = insert_stmt.on_conflict_do_nothing(
+            index_elements=[
+                table.c.forecast_date,
+                table.c.location,
+                table.c.fetched_at,
+            ],
+        )
 
     rows: list[dict[str, Any]] = []
     for idx, ts in enumerate(timestamps):
@@ -496,7 +527,26 @@ def insert_weather_data(
         if len(raw_values) < len(valid_names):
             raw_values.extend([None] * (len(valid_names) - len(raw_values)))
 
-        row: dict[str, Any] = {"timestamp": ts, "location": location}
+        # Build row with resolution-specific timestamp column names
+        if resolution == "current":
+            row: dict[str, Any] = {
+                "fetched_at": fetched_at,
+                "observed_at": observed_at,
+                "location": location,
+            }
+        elif resolution == "hourly":
+            row = {
+                "forecast_time": ts,
+                "fetched_at": fetched_at,
+                "location": location,
+            }
+        else:  # daily
+            row = {
+                "forecast_date": ts,
+                "fetched_at": fetched_at,
+                "location": location,
+            }
+
         row.update(
             {
                 # Cast to float for SQLite compatibility while preserving NULLs
@@ -507,7 +557,7 @@ def insert_weather_data(
         rows.append(row)
 
     try:
-        # Execute all rows at once to benefit from bulk upsert
+        # Execute all rows at once to benefit from bulk insert
         conn.execute(stmt, rows)
     except SQLAlchemyError as e:
         log_error(e, "weather:dbstore:insert_row:" + resolution, False)

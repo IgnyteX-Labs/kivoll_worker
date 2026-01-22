@@ -1,17 +1,19 @@
-.PHONY: install test lint format typecheck docs build clean check help up relaunch recreate down up-test-db down-test-db test-postgres
+.PHONY: install test test-cov lint format typecheck docs build clean check help up relaunch recreate down up-test-db down-test-db test-postgres test-docker
 
 # Mode: local (default) or prod
 MODE ?= local
 COMPOSE_FILE := deploy/$(MODE)/docker-compose.yml
 
 # Default target
-check: lint format typecheck test test-postgres
+check: lint format typecheck test-cov test test-postgres
 
 help:
 	@echo "Available targets:"
 	@echo "  install        Install dependencies"
 	@echo "  test           Run tests (sqlite-only by default)"
+	@echo "  test-cov       Run tests with coverage report"
 	@echo "  test-postgres  Run Postgres integration tests via docker compose"
+	@echo "  test-docker    Run Docker build and integration tests"
 	@echo "  up-test-db     Start local Postgres for tests (port 5433)"
 	@echo "  down-test-db   Stop local Postgres for tests"
 	@echo "  lint           Run lint checks"
@@ -37,6 +39,7 @@ help:
 	@echo "  make up                 # Start local dev containers"
 	@echo "  make MODE=prod up       # Start production containers"
 	@echo "  make MODE=prod recreate # Full rebuild for production"
+	@echo "  make test-docker        # Run Docker integration tests locally"
 
 install:
 	uv sync --group dev
@@ -44,6 +47,10 @@ install:
 test:
 	uv run pytest
 	@echo "pytest complete"
+
+test-cov:
+	uv run pytest --cov=kivoll_worker --cov-report=term-missing --cov-report=html:coverage_html
+	@echo "Coverage report generated. View at: file://$$(pwd)/coverage_html/index.html"
 
 lint:
 	uv run ruff check --fix
@@ -70,6 +77,9 @@ clean:
 	rm -rf .mypy_cache/
 	rm -rf .pytest_cache/
 	rm -rf .ruff_cache/
+	rm -rf coverage_html/
+	rm -rf .coverage
+	rm -rf htmlcov/
 	find . -type d -name "__pycache__" -exec rm -rf {} +
 
 up:
@@ -100,3 +110,10 @@ test-postgres: up-test-db
 	TEST_POSTGRES_URL=postgresql+psycopg://postgres:postgres@localhost:5433/postgres \
 		uv run pytest -q -k postgres
 	$(MAKE) down-test-db
+
+# Docker integration tests - can be run locally or in CI
+# Tests that Docker builds succeed, containers start, and healthcheck passes
+test-docker:
+	@echo "Running Docker integration tests..."
+	./tests/docker/test_docker.sh
+

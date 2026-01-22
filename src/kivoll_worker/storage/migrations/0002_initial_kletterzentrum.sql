@@ -4,7 +4,7 @@
 
 CREATE TABLE IF NOT EXISTS kletterzentrum_data
 (
-    timestamp
+    fetched_at
         INTEGER
         PRIMARY
             KEY,

@@ -8,6 +8,7 @@ import logging
 import re
 from argparse import Namespace
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 import requests
@@ -21,6 +22,7 @@ import kivoll_worker.storage
 
 from .. import __short_version__
 from ..common import config
+from ..common.config import get_tz
 from ..common.failure import log_error
 
 cli: Cliasi = Cliasi("uninitialized")
@@ -285,12 +287,13 @@ def kletterzentrum(args: Namespace) -> bool:
             text(
                 """
             INSERT INTO kletterzentrum_data
-            (timestamp, overall, seil, boulder, open_sectors, total_sectors)
-            VALUES (strftime('%s','now'),
+            (fetched_at, overall, seil, boulder, open_sectors, total_sectors)
+            VALUES (:fetched_at,
                     :overall, :seil, :boulder, :open_sectors, :total_sectors)
             """
             ),
             {
+                "fetched_at": int(datetime.now(get_tz(cli)).timestamp()),
                 "overall": parsed.overall,
                 "seil": parsed.seil,
                 "boulder": parsed.boulder,

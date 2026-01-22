@@ -1,5 +1,19 @@
 """
-Handle command line arguments for different scripts
+Command-line argument parsing for kivoll_worker entry points.
+
+This module provides argument parsing helpers for each CLI entry point:
+- :func:`parse_manage_args` for ``kivoll-schedule``
+- :func:`parse_scrape_args` for ``kivoll-scrape``
+- :func:`parse_predict_args` for ``kivoll-predict`` (future use)
+
+Each parser adds the shared options ``--verbose``, ``--warn-only``, and
+``--config-path`` before initializing configuration and error tracking.
+
+Example::
+    >>> from kivoll_worker.common.arguments import parse_scrape_args
+    >>> args = parse_scrape_args()
+    >>> if args.dry_run:
+    ...     print("Running in dry-run mode")
 """
 
 import argparse
@@ -7,9 +21,20 @@ import logging
 
 from cliasi import cli
 
+# ---------------------------------------------------------------------------
+# Common Argument Handling
+# ---------------------------------------------------------------------------
+
 
 def _parse_common_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
-    """Add arguments shared across multiple scripts."""
+    """
+    Add shared CLI options, parse arguments, and perform runtime initialization.
+
+    :param parser:
+        ArgumentParser instance with entry-point specific options already defined.
+    :returns: Parsed arguments namespace.
+    :rtype: argparse.Namespace
+    """
     parser.add_argument(
         "--verbose",
         dest="verbose",
@@ -29,15 +54,22 @@ def _parse_common_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         dest="config_path",
         action="store",
         default="data/config.json",
-        help="Path to main config file (default: config/config.json)",
+        help="Path to main config file (default: data/config.json)",
     )
+
     args = parser.parse_args()
+
+    # Initialize configuration system with the specified config file
     from .config import init_config
 
     init_config(args.config_path)
+
+    # Initialize error tracking database
     from .failure import init_errors_db
 
     init_errors_db()
+
+    # Configure CLI output verbosity
     cli.messages_stay_in_one_line = not args.verbose
     cli.min_verbose_level = (
         logging.WARNING
@@ -46,27 +78,47 @@ def _parse_common_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         if args.verbose
         else logging.INFO
     )
-    # Both values should be inferred automatically
+
     return args
 
 
-def parse_manage_args() -> argparse.Namespace:
-    """Return parsed arguments for the `kivoll_worker-manage` entry point.
+# ---------------------------------------------------------------------------
+# Entry Point Parsers
+# ---------------------------------------------------------------------------
 
-    Accepts an optional argv for easier testing.
+
+def parse_manage_args() -> argparse.Namespace:
+    """
+    Parse arguments for the ``kivoll-schedule`` entry point.
+
+    This parser only exposes the shared arguments, as the scheduler runs continuously.
+
+    :returns: Parsed arguments namespace.
+    :rtype: argparse.Namespace
     """
     parser = argparse.ArgumentParser(
-        prog="kivoll_worker-manage",
-        description="Kletterzentrum Innsbruck Auslastungsmonitor - management tasks",
+        prog="kivoll-schedule",
+        description="Kletterzentrum Innsbruck Auslastungsmonitor - job scheduler",
     )
     return _parse_common_args(parser)
 
 
 def parse_scrape_args() -> argparse.Namespace:
-    """Return parsed arguments for the `kivoll_worker-scrape` entry point."""
+    """
+    Parse arguments for the ``kivoll-scrape`` entry point.
+
+    Scrape-specific arguments:
+    - ``--dry-run``: Skip live data fetching.
+    - ``--targets``: Comma-separated target list (``weather, kletterzentrum, all``).
+    - ``--time-of-day``: Simulate running at a specific HH:MM time.
+    - ``--list-targets``: List available targets and exit.
+
+    :returns: Parsed arguments including scrape-specific options.
+    :rtype: argparse.Namespace
+    """
     parser = argparse.ArgumentParser(
-        prog="kivoll_worker-scrape",
-        description="Fetch and parse occupancy data from sources",
+        prog="kivoll-scrape",
+        description="Fetch and parse occupancy/weather data from configured sources",
     )
     parser.add_argument(
         "--dry-run",
@@ -102,13 +154,22 @@ def parse_scrape_args() -> argparse.Namespace:
 
 
 def parse_predict_args() -> argparse.Namespace:
-    """Return parsed arguments for the `kivoll_worker-predict` entry point.
+    """
+    Parse arguments for the ``kivoll-predict`` entry point.
 
-    This is a lightweight stub; when the neural net is implemented, add more
-    model/configuration-specific options here.
+    Predict-specific arguments:
+    - ``--model``: Path to the trained model file.
+    - ``--input``: Path to input data for prediction.
+
+    :returns: Parsed arguments including predict-specific options.
+    :rtype: argparse.Namespace
+
+    .. note::
+        This parser currently serves as a placeholder for future
+        ML functionality and may gain additional options later.
     """
     parser = argparse.ArgumentParser(
-        prog="kivoll_worker-predict",
+        prog="kivoll-predict",
         description="Run prediction using the (future) neural network model",
     )
     parser.add_argument(

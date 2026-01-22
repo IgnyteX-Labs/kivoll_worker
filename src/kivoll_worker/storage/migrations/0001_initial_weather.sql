@@ -4,10 +4,14 @@
 -- =========================
 -- HOURLY WEATHER DATA TABLE
 -- =========================
+-- Each row represents a forecasted hour captured at a specific fetch time.
+-- forecast_time: the hour being forecasted (from API)
+-- fetched_at: when we fetched this forecast (allows tracking forecast evolution)
 
 CREATE TABLE IF NOT EXISTS weather_hourly
 (
-    timestamp                  INTEGER NOT NULL,
+    forecast_time              INTEGER NOT NULL,
+    fetched_at                 INTEGER NOT NULL,
     location                   TEXT    NOT NULL,
     -- Temperature & Humidity
     temperature_2m             REAL,
@@ -58,19 +62,24 @@ CREATE TABLE IF NOT EXISTS weather_hourly
     soil_moisture_3_9cm        REAL,
     soil_moisture_9_27cm       REAL,
     soil_moisture_27_81cm      REAL,
-    PRIMARY KEY (timestamp, location)
+    PRIMARY KEY (forecast_time, location, fetched_at)
 );
 
 CREATE INDEX IF NOT EXISTS idx_weather_hourly_location ON weather_hourly (location);
-CREATE INDEX IF NOT EXISTS idx_weather_hourly_timestamp ON weather_hourly (timestamp);
+CREATE INDEX IF NOT EXISTS idx_weather_hourly_forecast_time ON weather_hourly (forecast_time);
+CREATE INDEX IF NOT EXISTS idx_weather_hourly_fetched_at ON weather_hourly (fetched_at);
 
 -- =========================
 -- DAILY WEATHER DATA TABLE
 -- =========================
+-- Each row represents a forecasted day captured at a specific fetch time.
+-- forecast_date: the day being forecasted (from API, Unix timestamp at midnight)
+-- fetched_at: when we fetched this forecast (allows tracking forecast evolution)
 
 CREATE TABLE IF NOT EXISTS weather_daily
 (
-    timestamp                     INTEGER NOT NULL,
+    forecast_date                 INTEGER NOT NULL,
+    fetched_at                    INTEGER NOT NULL,
     location                      TEXT    NOT NULL,
     -- Conditions
     weathercode                   REAL,
@@ -100,19 +109,24 @@ CREATE TABLE IF NOT EXISTS weather_daily
     -- Radiation
     shortwave_radiation_sum       REAL,
     et0_fao_evapotranspiration    REAL,
-    PRIMARY KEY (timestamp, location)
+    PRIMARY KEY (forecast_date, location, fetched_at)
 );
 
 CREATE INDEX IF NOT EXISTS idx_weather_daily_location ON weather_daily (location);
-CREATE INDEX IF NOT EXISTS idx_weather_daily_timestamp ON weather_daily (timestamp);
+CREATE INDEX IF NOT EXISTS idx_weather_daily_forecast_date ON weather_daily (forecast_date);
+CREATE INDEX IF NOT EXISTS idx_weather_daily_fetched_at ON weather_daily (fetched_at);
 
 -- =========================
 -- CURRENT WEATHER DATA TABLE
 -- =========================
+-- Each row represents a current weather observation captured at fetch time.
+-- fetched_at: when we fetched this data (unique per fetch)
+-- observed_at: when the API says this observation was made (updates every ~15 min)
 
 CREATE TABLE IF NOT EXISTS weather_current
 (
-    timestamp            INTEGER NOT NULL,
+    fetched_at           INTEGER NOT NULL,
+    observed_at          INTEGER NOT NULL,
     location             TEXT    NOT NULL,
     temperature_2m       REAL,
     relative_humidity_2m REAL,
@@ -129,11 +143,12 @@ CREATE TABLE IF NOT EXISTS weather_current
     wind_speed_10m       REAL,
     wind_direction_10m   REAL,
     wind_gusts_10m       REAL,
-    PRIMARY KEY (timestamp, location)
+    PRIMARY KEY (fetched_at, location)
 );
 
 CREATE INDEX IF NOT EXISTS idx_weather_current_location ON weather_current (location);
-CREATE INDEX IF NOT EXISTS idx_weather_current_timestamp ON weather_current (timestamp);
+CREATE INDEX IF NOT EXISTS idx_weather_current_fetched_at ON weather_current (fetched_at);
+CREATE INDEX IF NOT EXISTS idx_weather_current_observed_at ON weather_current (observed_at);
 
 
 -- =========================
