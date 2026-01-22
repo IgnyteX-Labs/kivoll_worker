@@ -11,7 +11,7 @@ RUN chmod +x /usr/local/bin/healthcheck.sh
 
 COPY src/kivoll_worker/__about__.py src/kivoll_worker/
 
-RUN uv sync --no-dev
+RUN uv sync --no-dev --frozen
 
 
 # ---- Runtime ----
