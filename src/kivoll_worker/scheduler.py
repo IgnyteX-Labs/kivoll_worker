@@ -109,14 +109,6 @@ def schedule() -> int:
 
     # Connect to persistent job store (SQLite locally, PostgreSQL in Docker)
     cli.log("Connecting to job store")
-    cli.log(
-        "DB url: "
-        + (
-            f"postgresql+psycopg://scheduler:{db_password}@{db_host}/scheduler_db"
-            if db_host and db_password and db_driver == "postgresql"
-            else "sqlite:///data/jobs.sqlite3"
-        )
-    )
     scheduler.add_jobstore(
         SQLAlchemyJobStore(
             url=f"postgresql+psycopg://scheduler:{db_password}@{db_host}/scheduler_db"
