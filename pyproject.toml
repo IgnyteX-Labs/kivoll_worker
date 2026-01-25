@@ -56,9 +56,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Qrashi/kivoll"
-Issues = "https://github.com/Qrashi/kivoll/issues"
-Documentation = "https://qrashi.github.io/kivoll/"
+Homepage = "https://github.com/ignyteX-Labs/kivoll_worker"
+Issues = "https://github.com/ignyteX-Labs/kivoll_worker/issues"
+Documentation = "https://ignytex-labs.github.io/kivoll_worker/"
 
 [project.scripts]
 kivoll-schedule = "kivoll_worker.scheduler:main"

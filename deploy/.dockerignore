@@ -1,6 +1,7 @@
 docs/
 data/
-deploy/
+deploy/*
+!deploy/healthcheck.sh
 tests/
 .git/
 .gitignore
