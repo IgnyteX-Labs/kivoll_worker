@@ -45,7 +45,8 @@ cli: Cliasi = Cliasi("uninitialized")
 # Database connection URL from environment (for Docker/production use)
 # Falls back to SQLite file in data directory if not set
 db_host = os.environ.get("DB_HOST")
-db_password = os.environ.get("WORKER_DB_PASSWORD")
+db_password = os.environ.get("WORKER_APP_PASSWORD")
+migrator_password = os.environ.get("WORKER_MIGRATOR_PASSWORD")
 db_driver = os.environ.get("DB_DRIVER")
 
 # Default SQLite database filename
@@ -198,7 +199,13 @@ def init_db() -> None:
     global cli
     cli = Cliasi("DB")
     cli.log("Connecting to DB")
-    conn = connect()
+    # Create migrator connection
+    engine = create_engine(
+        f"postgresql+psycopg://worker_migrator:{migrator_password}@{db_host}/worker_db"
+        if db_host and db_password and db_driver == "postgresql"
+        else "sqlite:///" + str(config.data_dir() / DATABASE_FILE)
+    )
+    conn = engine.connect()
     try:
         cli.log("Applying pending migrations (if any)")
         _apply_migrations(conn)
@@ -218,7 +225,7 @@ def _ensure_engine() -> Engine:
     global _engine
     if _engine is None:
         _engine = create_engine(
-            f"postgresql+psycopg://worker:{db_password}@{db_host}/worker_db"
+            f"postgresql+psycopg://worker_app:{db_password}@{db_host}/worker_db"
             if db_host and db_password and db_driver == "postgresql"
             else "sqlite:///" + str(config.data_dir() / DATABASE_FILE)
         )
