@@ -33,6 +33,6 @@ kivoll-schedule --help
 ```
 
 ## Documentation
-For more information, visit the [kivoll_worker documentation](https://kivoll_worker.readthedocs.io).
+For more information, visit the [kivoll_worker documentation](https://kivoll-worker.readthedocs.io).
 
 For details about the `kivoll` project as a whole, refer to the `kivoll_infra` documentation (link not yet available).
