@@ -25,6 +25,7 @@ It is highly recommended to run the entire ``kivoll`` project with the
 instructions from ``kivoll_infra`` repository.
 
 To install the latest version directly from the repository, run:
+
 .. code-block:: bash
 
     git clone https://ignytex-labs/kivoll_worker.git
