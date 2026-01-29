@@ -18,6 +18,16 @@ It is a part of the overall kivoll project (see [kivoll_infra](https://github.co
 ## Warning
 This project is not affiliated with Kletterzentrum Innsbruck. Use at your own risk. The web scraper relies on the current HTML structure of the website and may break if the structure changes.
 
+## Usage as container
+The ``kivoll_worker`` container requires access to a PostgreSQL database
+
+### Environment Variables
+- `DB_HOST`: The database host (default: `localhost:5432`)
+- `DB_DRIVER`: The database driver (default: `postgresql`)
+- `WORKER_APP_PASSWORD`: Password for the worker application (``rw``)
+- `WORKER_MIGRATOR_PASSWORD`: Username for the worker migrator (``DDL``)
+- `SCHEDULER_DB_PASSWORD`: Username for the scheduler (``DDL``)
+
 ## Installation & Usage
 kivoll_worker is not available as a PyPI package. It is recommended to run the entire `kivoll` project using the instructions from the `kivoll_infra` repository.
 
