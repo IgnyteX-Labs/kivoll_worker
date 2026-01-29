@@ -36,12 +36,7 @@ jobs:
       - name: Typecheck with mypy
         run: uv run mypy src
 
-      - name: Start test database
-        run: docker compose -f deploy/test/docker-compose.yml up -d --wait
-
       - name: Test with pytest
-        env:
-          TEST_POSTGRES_URL: postgresql+psycopg://postgres:postgres@localhost:5433/postgres
         run: |
           uv run pytest \
           --cov=src \
@@ -62,8 +57,3 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: true
           files: coverage.xml
-
-      - name: Stop test database
-        if: always()
-        run: docker compose -f deploy/test/docker-compose.yml down -v
-
