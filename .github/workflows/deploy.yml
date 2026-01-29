@@ -31,4 +31,4 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+            ghcr.io/ignytex-labs/kivoll_worker:${{ github.ref_name }}
