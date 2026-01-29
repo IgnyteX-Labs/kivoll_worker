@@ -1,5 +1,9 @@
 # kivoll_worker
 
+![GitHub issues](https://img.shields.io/github/issues/IgnyteX-Labs/kivoll_worker)
+![Build status](https://img.shields.io/github/actions/workflow/status/ignytex-labs/kivoll_worker/test.yml)
+![codecov](https://img.shields.io/codecov/c/github/ignytex-labs/kivoll_worker)
+
 kivoll_worker is a set of tools to automate occupancy data collection.
 
 It is a part of the overall kivoll project (see [kivoll_infra](https://github.com/Ignytex-Labs/kivoll_infra) for more information).

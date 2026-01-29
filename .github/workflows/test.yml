@@ -42,6 +42,7 @@ jobs:
           --cov=src \
           --cov-report=xml \
           --cov-report=term-missing \
+          --cov-report=html \
           --cov-report=xml:coverage.xml \
           --cov-fail-under=80
 
