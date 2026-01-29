@@ -24,13 +24,14 @@ from collections.abc import Callable
 from datetime import datetime, time
 
 from cliasi import Cliasi
+from sqlalchemy import Connection
 
 from kivoll_worker.common.arguments import parse_scrape_args
 from kivoll_worker.common.config import get_tz
 from kivoll_worker.common.failure import log_error
 from kivoll_worker.scrape.kletterzentrum import kletterzentrum
 from kivoll_worker.scrape.weather import weather
-from kivoll_worker.storage import init_db
+from kivoll_worker.storage import connect, init_db
 
 # ---------------------------------------------------------------------------
 # Scrape Target Configuration
@@ -40,14 +41,14 @@ from kivoll_worker.storage import init_db
 # business hours for kletterzentrum).
 
 SCRAPE_TARGETS: dict[
-    str, dict[str, tuple[time, time] | Callable[[Namespace], bool] | str]
+    str, dict[str, tuple[time, time] | Callable[[Namespace, Connection], bool] | str]
 ] = {
     "weather": {
-        "run": lambda _: weather(),
+        "run": lambda _, connection: weather(connection),
         "interval": "0",  # Once per hour (see scheduler.py for actual cron)
     },
     "kletterzentrum": {
-        "run": lambda args: kletterzentrum(args),
+        "run": lambda args, connection: kletterzentrum(args, connection),
         "interval": "*/5",  # Every 5 minutes during open hours
         "open": (time(9, 0), time(22, 0)),  # Only scrape during opening hours
     },
@@ -106,7 +107,9 @@ def _reference_time(time_of_day: str | None, cli: Cliasi) -> time:
 
 def _is_open(
     at: time,
-    target_info: dict[str, tuple[time, time] | Callable[[Namespace], bool] | str],
+    target_info: dict[
+        str, tuple[time, time] | Callable[[Namespace, Connection], bool] | str
+    ],
 ) -> bool:
     """
     Determine if a target should run at the provided time.
@@ -224,13 +227,21 @@ def main() -> int:
         ):
             cli.info(f"Scraping {target}", message_right=f"[{idx}/{total}]")
             try:
-                success = runner(args)
+                db = connect()
+                success = runner(args, db)
+                if success:
+                    db.commit()
+                else:
+                    db.rollback()
+                db.close()
             except Exception as exc:
                 log_error(exc, f"scraper:run:{target}", False)
                 cli.fail(
                     f"{target} scrape raised an exception: {exc}",
                     messages_stay_in_one_line=False,
                 )
+                db.rollback()
+                db.close()
                 success = False
             if not success:
                 failed += 1

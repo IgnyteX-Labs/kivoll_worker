@@ -15,8 +15,6 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import SQLAlchemyError
 
-import kivoll_worker.storage
-
 from ..common.config import config
 from ..common.failure import log_error
 
@@ -40,7 +38,7 @@ def _is_close(a: float, b: float) -> bool:
     return abs(a - b) < 1e-2 * 3
 
 
-def weather() -> bool:
+def weather(connection: Connection) -> bool:
     """
     Fetch weather data and save it to database
     :return: Success status as boolean
@@ -86,7 +84,7 @@ def weather() -> bool:
     daily_params_raw = parameters.get("daily", [])
     if not isinstance(daily_params_raw, list):
         log_error(
-            TypeError("hourly parameter is not a list"),
+            TypeError("daily parameter is not a list"),
             "weather:config:invalid_parameter_type",
             False,
         )
@@ -97,7 +95,7 @@ def weather() -> bool:
     current_params_raw = parameters.get("current", [])
     if not isinstance(current_params_raw, list):
         log_error(
-            TypeError("hourly parameter is not a list"),
+            TypeError("current parameter is not a list"),
             "weather:config:invalid_parameter_type",
             False,
         )
@@ -105,9 +103,13 @@ def weather() -> bool:
         current_params_raw = [current_params_raw]
     current_params: list[str] = [str(p) for p in current_params_raw]
 
-    valid_hourly, invalid_hourly = validate_parameters(hourly_params, "hourly")
-    valid_daily, invalid_daily = validate_parameters(daily_params, "daily")
-    valid_current, invalid_current = validate_parameters(current_params, "current")
+    valid_hourly, invalid_hourly = validate_parameters(
+        hourly_params, "hourly", connection
+    )
+    valid_daily, invalid_daily = validate_parameters(daily_params, "daily", connection)
+    valid_current, invalid_current = validate_parameters(
+        current_params, "current", connection
+    )
 
     for inv in invalid_hourly:
         cli.warn(f"Invalid hourly parameter '{inv}' will be ignored")
@@ -177,7 +179,6 @@ def weather() -> bool:
     cli.success("Weather data fetched successfully!", verbosity=logging.DEBUG)
 
     cli.log("Writing to database")
-    database = kivoll_worker.storage.connect()
     fetch_time = int(time.time())  # Capture once for all inserts in this fetch
     success = True
     saved = 0
@@ -232,7 +233,7 @@ def weather() -> bool:
                     if (var := current.Variables(idx)) is not None
                 ]
                 insert_weather_data(
-                    database,
+                    connection,
                     "current",
                     location_name,
                     [fetch_time],  # fetched_at as the timestamp list
@@ -268,7 +269,7 @@ def weather() -> bool:
                     if (var := hourly.Variables(idx)) is not None
                 ]
                 insert_weather_data(
-                    database,
+                    connection,
                     "hourly",
                     location_name,
                     hourly_timestamps,
@@ -305,7 +306,7 @@ def weather() -> bool:
                     if (var := daily.Variables(idx)) is not None
                 ]
                 insert_weather_data(
-                    database,
+                    connection,
                     "daily",
                     location_name,
                     daily_timestamps,
@@ -321,7 +322,6 @@ def weather() -> bool:
 
         if saved:
             cli.log("Committing changes")
-            database.commit()
             cli.success("Weather data written to database", logging.DEBUG)
         else:
             cli.fail(
@@ -343,7 +343,6 @@ def weather() -> bool:
             f"Could not store weather data to database!\nError: {e}",
             messages_stay_in_one_line=False,
         )
-        database.rollback()
     except Exception as e:
         success = False
         log_error(e, "weather:dbstore:unknown", False)
@@ -351,23 +350,20 @@ def weather() -> bool:
             f"An unexpected error occurred while storing weather data!\nError: {e}",
             messages_stay_in_one_line=False,
         )
-        database.rollback()
-    finally:
-        database.close()
-
     return success
 
 
-def _load_columns_from_db() -> None:
+def _load_columns_from_db(connection: Connection) -> None:
     """
     Load valid weather parameter columns from the database.
     Populates the module-level cache.
     """
     global _columns_cache
 
-    conn = kivoll_worker.storage.connect()
     try:
-        cursor = conn.execute(text("SELECT name, resolution FROM weather_parameters"))
+        cursor = connection.execute(
+            text("SELECT name, resolution FROM weather_parameters")
+        )
         rows = cursor.fetchall()
     except SQLAlchemyError as e:
         log_error(e, "weather:validate:cache:load_from_db", False)
@@ -377,7 +373,7 @@ def _load_columns_from_db() -> None:
         )
         raise
     finally:
-        conn.close()
+        connection.close()
 
     hourly: set[str] = set()
     daily: set[str] = set()
@@ -418,17 +414,18 @@ def _get_weather_table(conn: Connection, resolution: Resolution) -> Table | None
     return table
 
 
-def get_valid_columns(resolution: Resolution) -> frozenset[str]:
+def get_valid_columns(resolution: Resolution, connection: Connection) -> frozenset[str]:
     """
     Get the set of valid column names for a given resolution.
     Lazily loads from database on first access.
 
     :param resolution: One of 'hourly', 'daily', 'current'
+    :param connection: db connection
     :return: frozenset of valid column names
     :raises ValueError: If resolution is unknown
     """
     if not _columns_cache:
-        _load_columns_from_db()
+        _load_columns_from_db(connection)
 
     if resolution not in _columns_cache:
         e = ValueError(f"Unknown resolution: {resolution}")
@@ -439,14 +436,14 @@ def get_valid_columns(resolution: Resolution) -> frozenset[str]:
 
 
 def validate_parameters(
-    requested: list[str],
-    resolution: Resolution,
+    requested: list[str], resolution: Resolution, connection: Connection
 ) -> tuple[list[str], list[str]]:
     """
     Validate requested parameters against valid columns for a resolution.
 
     :param requested: List of parameter names from config
     :param resolution: One of 'hourly', 'daily', 'current'
+    :param connection: db connection
     :return: Tuple of (valid_parameters, invalid_parameters)
     """
     # If no parameters were requested for this resolution, return empty lists
@@ -456,7 +453,7 @@ def validate_parameters(
     if not requested:
         return [], []
 
-    valid_cols = get_valid_columns(resolution)
+    valid_cols = get_valid_columns(resolution, connection)
     valid = [p for p in requested if p in valid_cols]
     invalid = [p for p in requested if p not in valid_cols]
     return valid, invalid
@@ -487,7 +484,7 @@ def insert_weather_data(
     :param observed_at: API's observation timestamp (only for current)
     :return: Success status as boolean
     """
-    valid_columns = get_valid_columns(resolution)
+    valid_columns = get_valid_columns(resolution, conn)
     # Only keep parameters that match the DB
     # schema so invalid config entries are ignored
     valid_indices = [i for i, name in enumerate(param_names) if name in valid_columns]

@@ -1,3 +1,7 @@
+"""
+Kivoll worker top module
+"""
+
 __version__: str
 """kivoll_worker version fetched from setuptools_scm 
 or (if not available) set to '0+unknown'."""

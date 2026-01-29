@@ -14,14 +14,14 @@ dependencies and run the application.
     uv sync
 
 .. warning::
-    SQLite support may be dropped in the future.
+    SQLite support will be dropped in the near future.
 
 Full local development environment
 -----------------------------------
-To set up a full local development environment, you will need to install docker and docker-compose.
+To set up a full local development environment, you will need to install docker.
 
 First up, set up environment variables. You can copy the provided example file
-under ``deploy/.env.example`` and adjust it to your needs.
+under ``.env.example`` and adjust it to your needs.
 
 .. code-block:: bash
 
@@ -30,9 +30,9 @@ under ``deploy/.env.example`` and adjust it to your needs.
 
 Local database
 ~~~~~~~~~~~~~~~~
-Other parts of the kivoll project, such as the API server and the web frontend, also require a running
+Other parts of the kivoll project, such as the API server also require a running
 a database. If you want all projects to access the same database, you can use the provided
-docker-compose configuration in ``deploy/db/docker-compose.yml``.
+database which can be started via the Makefile
 
 To start the database run
 
@@ -42,9 +42,13 @@ To start the database run
 
 This will start a PostgresSQL database on port 5432 with the default credentials specified in ``.env``
 
+.. warning::
+    Make sure that all env variables are present (see the most recent commits), otherwise
+    the database might not initialize correctly.
+
 Run with environment variables set
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-kivoll_worker requires certain environment variables to be set in order to not default to SQLite.
+kivoll_worker requires certain environment variables to be set in order to connect to the DB.
 
 To set these variables, use the Makefile.
 
@@ -53,25 +57,32 @@ To set these variables, use the Makefile.
     make env
 
 .. tip::
-    If you are already using the docker database, consider running the application inside a docker container as well.
+    If you are already using the docker database,
+    consider running kivoll_worker inside a docker container as well.
 
 Run in docker container
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-To run the application inside a docker container, you can use the provided local.Dockerfile and Makefile.
+To run the application inside a docker container,
+you can use the provided local.Dockerfile and Makefile.
 
 .. code-block:: bash
 
     make docker-build
     make docker-shell
 
-This will build the docker image and run the container with the environment variables set from ``.env``.
+This will build the docker image and run the container with the
+environment variables set from ``.env``.
 
 If you want to run the container in detached mode, you can use
+
 .. code-block:: bash
 
     make docker-headless
+
 
 Deploy to ghcr.io
 ---------------------
 The package will be automatically built and pushed to GitHub Container Registry
 with a github action.
+
+The workflows to do that locally do not exist

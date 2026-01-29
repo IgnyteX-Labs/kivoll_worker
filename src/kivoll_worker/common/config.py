@@ -160,8 +160,8 @@ def __config_migrations() -> None:
 
     :returns: None
     """
-    version = config()["file"]["version"]
     try:
+        version = config()["file"]["version"]
         version = int(version)
         match version:
             # Add future migrations here as new cases:

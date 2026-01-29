@@ -12,6 +12,10 @@ markers = [
     "database: tests that require a Postgres database",
     "integration: tests build the docker image",
 ]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::sqlalchemy.exc.SAWarning",
+]
 
 [tool.coverage.run]
 source = ["src/kivoll_worker"]

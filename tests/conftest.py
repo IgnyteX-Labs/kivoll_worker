@@ -90,10 +90,9 @@ def db_engine(
     try:
         yield session
     finally:
-        session.rollback()
+        session.close()
         transaction.rollback()
         connection.close()
-        session.close()
         engine.dispose()
 
 
@@ -126,3 +125,123 @@ def _build_container(image: str, test_env: dict[str, str]) -> DockerContainer:
         if value is not None:
             container = container.with_env(key, value)
     return container
+
+
+class _DummyCli:
+    def __init__(self) -> None:
+        self.failed: list[str] = []
+        self.warned: list[str] = []
+        self.logged: list[str] = []
+        self.informed: list[str] = []
+        self.succeeded: list[str] = []
+
+    def fail(self, msg: str, *args, **kwargs) -> None:
+        self.failed.append(msg)
+        print(f"X {msg}")  # Simulate output
+
+    def warn(self, msg: str, *args, **kwargs) -> None:
+        self.warned.append(msg)
+        print(f"! {msg}")  # Simulate output
+
+    def log(self, msg: str, *args, **kwargs) -> None:
+        self.logged.append(msg)
+
+    def info(self, msg: str, *args, **kwargs) -> None:
+        self.informed.append(msg)
+        print(f"i {msg}")  # Simulate output
+
+    def success(self, msg: str, *args, **kwargs) -> None:
+        self.succeeded.append(msg)
+        print(f"✓ {msg}")  # Simulate output
+
+    def animate_message_download_non_blocking(self, msg: str, **kwargs):
+        from unittest.mock import Mock
+
+        return Mock()
+
+
+@pytest.fixture
+def dummy_cli():
+    return _DummyCli()
+
+
+@pytest.fixture
+def mock_cli(monkeypatch):
+    from kivoll_worker.scrape import kletterzentrum
+
+    dummy = _DummyCli()
+    monkeypatch.setattr(kletterzentrum, "cli", dummy)
+    return dummy
+
+
+@pytest.fixture
+def mock_kletterzentrum_cliasi(dummy_cli):
+    from unittest.mock import patch
+
+    with patch("kivoll_worker.scrape.kletterzentrum.Cliasi", return_value=dummy_cli):
+        yield
+
+
+@pytest.fixture
+def mock_kletterzentrum_log_error():
+    from unittest.mock import patch
+
+    with patch(
+        "kivoll_worker.scrape.kletterzentrum.log_error", lambda *args, **kwargs: None
+    ):
+        yield
+
+
+@pytest.fixture
+def mock_kletterzentrum_get_tz():
+    from datetime import timezone
+    from unittest.mock import patch
+
+    with patch("kivoll_worker.scrape.kletterzentrum.get_tz", lambda cli: timezone.utc):
+        yield
+
+
+@pytest.fixture
+def mock_kletterzentrum_config(tmp_path):
+    from unittest.mock import Mock
+
+    mock_config = Mock()
+    mock_config.data_dir.return_value = tmp_path
+    mock_config.config.return_value = {
+        "modules": {
+            "kletterzentrum": {"user_agent": "test/%s", "url": "http://example.com"}
+        }
+    }
+    return mock_config
+
+
+@pytest.fixture
+def mock_scraper_cliasi(dummy_cli):
+    from unittest.mock import patch
+
+    with patch("kivoll_worker.scraper.Cliasi", lambda name: dummy_cli):
+        yield
+
+
+@pytest.fixture
+def mock_scraper_log_error():
+    from unittest.mock import patch
+
+    with patch("kivoll_worker.scraper.log_error", lambda *args, **kwargs: None):
+        yield
+
+
+@pytest.fixture
+def mock_scraper_get_tz():
+    from unittest.mock import patch
+
+    with patch("kivoll_worker.scraper.get_tz", lambda cli: "UTC"):
+        yield
+
+
+@pytest.fixture
+def mock_scraper_init_db():
+    from unittest.mock import patch
+
+    with patch("kivoll_worker.scraper.init_db", lambda: None):
+        yield

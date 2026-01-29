@@ -15,10 +15,8 @@ import requests
 from bs4 import BeautifulSoup
 from cliasi import Cliasi
 from requests import HTTPError
-from sqlalchemy import text
+from sqlalchemy import Connection, text
 from sqlalchemy.exc import SQLAlchemyError
-
-import kivoll_worker.storage
 
 from .. import __short_version__
 from ..common import config
@@ -192,7 +190,7 @@ def _parse_html(html: str) -> KletterzentrumOccupancyData:
     return data
 
 
-def kletterzentrum(args: Namespace) -> bool:
+def kletterzentrum(args: Namespace, connection: Connection) -> bool:
     """
     Fetch occupancy data from the Kletterzentrum Innsbruck website.
 
@@ -200,6 +198,7 @@ def kletterzentrum(args: Namespace) -> bool:
         arguments passed to function (contains ``dry_run`` flag)
         If True, load HTML from a saved file instead of making a network request.
         If no file is available, will throw error
+    :param connection: db connection to use
     :return bool indicating success
     """
     global cli
@@ -279,11 +278,10 @@ def kletterzentrum(args: Namespace) -> bool:
     if args.dry_run:
         return True
     cli.log("Connecting to database")
-    database = kivoll_worker.storage.connect()
     success = True
     try:
         cli.log("Writing kletterzentrum values")
-        database.execute(
+        connection.execute(
             text(
                 """
             INSERT INTO kletterzentrum_data
@@ -301,8 +299,6 @@ def kletterzentrum(args: Namespace) -> bool:
                 "total_sectors": parsed.total_sectors,
             },
         )
-        cli.log("Committing changes")
-        database.commit()
         cli.success("Kletterzentrum data written to database", logging.DEBUG)
     except SQLAlchemyError as e:
         success = False
@@ -311,7 +307,6 @@ def kletterzentrum(args: Namespace) -> bool:
             f"Could not store kletterzentrum data to database!\nError: {e}",
             messages_stay_in_one_line=False,
         )
-        database.rollback()
     except Exception as e:
         success = False
         log_error(e, "kletterzentrum:dbstore:unknown", False)
@@ -320,8 +315,4 @@ def kletterzentrum(args: Namespace) -> bool:
             f"Error: {e}",
             messages_stay_in_one_line=False,
         )
-        database.rollback()
-    finally:
-        database.close()
-
     return success

@@ -76,18 +76,20 @@ def init_errors_db() -> None:
     )
 
     try:
-        _errors.reload()
+        _errors.reload(strict=True)
     except JSONDeserializationError:
         # File exists but contains invalid JSON
         cli.fail(
             f"errors.json at {config.data_dir() / 'errors.json'} is malformed JSON.\n"
             f"Will save copy and create new file."
         )
-        # TODO: backup malformed file before overwriting
         cli.animate_message_blocking(
             "errors.json is malformed. Restoring default database!", 3
         )
         _errors.restore_default(False)
+
+    # Run any pending migrations to update old error file versions
+    __errors_migrations()
 
 
 # ---------------------------------------------------------------------------
@@ -119,8 +121,8 @@ def __errors_migrations() -> None:
     future schema changes (e.g., adding new fields to error records).
     """
     global CURRENT_ERRORS_VERSION
-    version = _errors.json["file"]["version"]
     try:
+        version = _errors.json["file"]["version"]
         version = int(version)
         match version:
             # Add future migrations here as new cases

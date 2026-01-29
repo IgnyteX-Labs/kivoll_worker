@@ -2,6 +2,8 @@
 import pathlib
 
 import openmeteo_requests
+import pytest
+from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 import kivoll_worker.common.config as _config_mod
@@ -51,9 +53,6 @@ if not hasattr(_config_mod, "_data_dir"):
     _config_mod._data_dir = pathlib.Path(".")
 
 # Now import the weather module (which expects the above globals)
-import pytest  # noqa: E402
-from sqlalchemy import text  # noqa: E402
-
 from kivoll_worker.scrape import weather  # noqa: E402
 
 
@@ -121,7 +120,7 @@ def test_validate_parameters_with_cache() -> None:
     weather._columns_cache.clear()
     weather._columns_cache["hourly"] = frozenset({"t1", "t2"})
 
-    valid, invalid = weather.validate_parameters(["t1", "bad"], "hourly")
+    valid, invalid = weather.validate_parameters(["t1", "bad"], "hourly", None)
     assert valid == ["t1"]
     assert invalid == ["bad"]
 
@@ -149,22 +148,19 @@ def test_load_columns_from_db_and_get_valid_columns(db_engine, monkeypatch) -> N
     )
 
     # Monkeypatch storage.connect to return a connection acquired from the session
-    monkeypatch.setattr(
-        weather.kivoll_worker.storage, "connect", lambda: session.connection()
-    )
 
     # Clear caches and load
     weather._columns_cache.clear()
     weather._table_cache.clear()
 
     # Use a short-lived connection for the DB access inside the function
-    with session.connection() as _conn:
+    with session.connection() as conn:
         # monkeypatched storage.connect() will also return a connection; call loader
-        weather._load_columns_from_db()
+        weather._load_columns_from_db(conn)
 
-    assert "temperature_2m" in weather.get_valid_columns("hourly")
-    assert "precipitation_sum" in weather.get_valid_columns("daily")
-    assert "wind_gusts_10m" in weather.get_valid_columns("current")
+    assert "temperature_2m" in weather.get_valid_columns("hourly", conn)
+    assert "precipitation_sum" in weather.get_valid_columns("daily", conn)
+    assert "wind_gusts_10m" in weather.get_valid_columns("current", conn)
 
 
 @pytest.mark.database
@@ -311,11 +307,89 @@ def _disable_log_error_and_init_minimal_config(monkeypatch, tmp_path):
     yield
 
 
+def test_raise_value_error_with_empty_url_or_parameters(monkeypatch) -> None:
+    cfg = {"modules": {"weather": {"url": "", "parameters": {}, "locations": {}}}}
+    monkeypatch.setattr(weather, "config", lambda: cfg)
+
+    assert weather.weather(None) is False
+
+
+def test_warn_on_nonlist_parameters(monkeypatch) -> None:
+    cfg = {
+        "modules": {
+            "weather": {
+                "url": "asd",
+                "locations": {},
+                "parameters": {
+                    "hourly": "hourlyparam",
+                    "daily": "dailyparam",
+                    "current": "currentparam",
+                },
+            }
+        }
+    }
+
+    captured_ex: set[str] = set({})
+
+    def patched_logerror(ex: ValueError | TypeError, ctx, _fatal):
+        nonlocal captured_ex
+        assert isinstance(ex, ValueError) or isinstance(ex, TypeError)
+        captured_ex.add(str(ex))
+
+    monkeypatch.setattr(weather, "log_error", patched_logerror)
+    monkeypatch.setattr(weather, "config", lambda: cfg)
+
+    weather._columns_cache["hourly"] = frozenset({})
+    weather._columns_cache["current"] = frozenset({})
+    weather._columns_cache["daily"] = frozenset({})
+
+    # Warnings should be issued for every one of the not valid params
+
+    class _ShortCircuitEx(Exception):
+        pass
+
+    def end_on_anim_msg_nonblocking(*a, **k):
+        raise _ShortCircuitEx()
+
+    monkeypatch.setattr(
+        weather.cli,
+        "animate_message_download_non_blocking",
+        end_on_anim_msg_nonblocking,
+        raising=False,
+    )
+    from cliasi import Cliasi as cli_mod
+
+    monkeypatch.setattr(
+        cli_mod,
+        "animate_message_download_non_blocking",
+        end_on_anim_msg_nonblocking,
+        raising=False,
+    )
+
+    with pytest.raises(_ShortCircuitEx):
+        weather.weather(None)
+
+    desired_ex = {
+        "current parameter is not a list",
+        "hourly parameter is not a list",
+        "daily parameter is not a list",
+        "Invalid hourly weather parameter requested: hourlyparam",
+        "Invalid daily weather parameter requested: dailyparam",
+        "Invalid current weather parameter requested: currentparam",
+    }
+    not_recieved = desired_ex - captured_ex
+    too_much = captured_ex - desired_ex
+    if not_recieved or too_much:
+        pytest.fail(
+            f"log output differs: too much: {too_much};not recieved: {not_recieved}"
+        )
+
+
 def test_get_valid_columns_unknown_resolution_raises(monkeypatch) -> None:
     weather._columns_cache.clear()
     weather._columns_cache["hourly"] = frozenset({"a"})
     with pytest.raises(ValueError):
-        weather.get_valid_columns("bogus")
+        weather.get_valid_columns("bogus", None)
 
 
 def test__load_columns_from_db_raises_on_sqlalchemy_error(monkeypatch) -> None:
@@ -328,11 +402,10 @@ def test__load_columns_from_db_raises_on_sqlalchemy_error(monkeypatch) -> None:
             pass
 
     monkeypatch.setattr(weather, "log_error", lambda ex, context, fatal: None)
-    monkeypatch.setattr(weather.kivoll_worker.storage, "connect", lambda: BadConn())
     weather._columns_cache.clear()
 
     with pytest.raises(SQLAlchemyError):
-        weather._load_columns_from_db()
+        weather._load_columns_from_db(BadConn())
 
 
 # ---------------------
@@ -533,24 +606,6 @@ def test_weather_success_inserts_all_resolutions(db_engine, monkeypatch):
         }
     }
 
-    monkeypatch.setattr(
-        weather,
-        "cli",
-        type(
-            "X",
-            (),
-            {
-                "animate_message_download_non_blocking": lambda *a, **k: type(
-                    "T", (), {"stop": lambda *a, **k: None}
-                )(),
-                "fail": lambda *a, **k: None,
-                "warn": lambda *a, **k: None,
-                "log": lambda *a, **k: None,
-                "success": lambda *a, **k: None,
-            },
-        ),
-    )
-
     monkeypatch.setattr(weather, "_columns_cache", weather._columns_cache)
 
     # Build a fake response that matches the location
@@ -577,10 +632,7 @@ def test_weather_success_inserts_all_resolutions(db_engine, monkeypatch):
     monkeypatch.setattr(weather, "config", lambda: cfg)
 
     with session.connection() as conn:
-        monkeypatch.setattr(weather.kivoll_worker.storage, "connect", lambda: conn)
-        with monkeypatch.context() as m:
-            m.setattr(conn, "close", lambda: None)
-            ok = weather.weather()
+        ok = weather.weather(conn)
         assert ok is True
 
         # Verify some rows in DB
@@ -637,26 +689,6 @@ def test_weather_handles_missing_subobjects_and_returns_false(
     weather._columns_cache["daily"] = frozenset({"precipitation_sum"})
     weather._table_cache.clear()
 
-    monkeypatch.setattr(
-        weather,
-        "cli",
-        type(
-            "X",
-            (),
-            {
-                "animate_message_download_non_blocking": lambda *a, **k: type(
-                    "T", (), {"stop": lambda *a, **k: None}
-                )(),
-                "fail": lambda *a, **k: None,
-                "warn": lambda *a, **k: None,
-                "log": lambda *a, **k: None,
-                "success": lambda *a, **k: None,
-            },
-        ),
-    )
-    monkeypatch.setattr(
-        weather.kivoll_worker.storage, "connect", lambda: session.connection()
-    )
     monkeypatch.setattr(weather, "config", lambda: cfg)
 
     # Response where Current/Hourly/Daily return None despite being requested
@@ -665,7 +697,8 @@ def test_weather_handles_missing_subobjects_and_returns_false(
         openmeteo_requests.Client, "weather_api", lambda self, url, params: [resp]
     )
 
-    ok = weather.weather()
+    with session.connection() as conn:
+        ok = weather.weather(conn)
     assert ok is False
 
 
@@ -675,21 +708,7 @@ def test_weather_malformed_config_returns_false(monkeypatch) -> None:
     cfg = {"modules": {"weather": {"url": None, "parameters": None, "locations": {}}}}
     monkeypatch.setattr(weather, "config", lambda: cfg)
 
-    monkeypatch.setattr(
-        weather,
-        "cli",
-        type(
-            "X",
-            (),
-            {
-                "fail": lambda *a, **k: None,
-                "warn": lambda *a, **k: None,
-                "log": lambda *a, **k: None,
-            },
-        ),
-    )
-
-    result = weather.weather()
+    result = weather.weather(None)
     assert result is False
 
 
@@ -724,23 +743,5 @@ def test_weather_request_error_returns_false(monkeypatch) -> None:
         ),
     )
 
-    monkeypatch.setattr(
-        weather,
-        "cli",
-        type(
-            "X",
-            (),
-            {
-                "animate_message_download_non_blocking": lambda *a, **k: type(
-                    "T", (), {"stop": lambda *a, **k: None}
-                )(),
-                "fail": lambda *a, **k: None,
-                "warn": lambda *a, **k: None,
-                "log": lambda *a, **k: None,
-                "success": lambda *a, **k: None,
-            },
-        ),
-    )
-
-    result = weather.weather()
+    result = weather.weather(None)
     assert result is False

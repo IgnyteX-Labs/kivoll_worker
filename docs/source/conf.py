@@ -1,8 +1,11 @@
 import os
 import sys
+import sqlite3
 
 from docutils import nodes
-from docutils.parsers.rst import Directive
+from docutils.parsers.rst import Directive, Parser
+from docutils.utils import new_document
+from docutils.core import publish_doctree
 
 sys.path.insert(0, os.path.abspath(os.path.join("..", "..", "src")))
 
@@ -15,7 +18,7 @@ sys.path.insert(0, os.path.abspath(os.path.join("..", "..", "src")))
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "kivoll_worker"
-copyright = "2025, f.rader"
+copyright = "2026, ignyte.link labs"
 author = "f.rader"
 
 # Determine version dynamically from installed package metadata; fall back during local builds.
@@ -48,10 +51,14 @@ def _short_version(ver: str) -> str:
 
 # helper.py
 def generate_parameter_table():
-    db_conn = None # TODO
-    rows = db_conn.execute(
+    conn = sqlite3.connect(':memory:')
+    migration_path = os.path.join(os.path.dirname(__file__), '..', '..', 'src', 'kivoll_worker', 'storage', 'migrations', '0001_initial_weather.sql')
+    with open(migration_path, 'r') as f:
+        sql = f.read()
+    conn.executescript(sql)
+    rows = conn.execute(
         "SELECT name, unit, description, resolution FROM weather_parameters ORDER BY resolution, name"
-    )
+    ).fetchall()
     lines = [
         ".. list-table:: Available Weather Parameters",
         "   :header-rows: 1",
@@ -63,24 +70,26 @@ def generate_parameter_table():
         "     - Resolution",
     ]
     for r in rows:
-        lines.append(f"   * - {r['name']}")
-        lines.append(f"     - {r['unit'] or ''}")
-        lines.append(f"     - {r['description'] or ''}")
-        lines.append(f"     - {r['resolution'] or ''}")
+        lines.append(f"   * - {r[0]}")
+        lines.append(f"     - {r[1] or ''}")
+        lines.append(f"     - {r[2] or ''}")
+        lines.append(f"     - {r[3] or ''}")
+    conn.close()
     return "\n".join(lines)
 
 
 class WeatherParametersDirective(Directive):
     def run(self):
         table_rst = generate_parameter_table()
-        return [nodes.raw("", table_rst, format="rst")]
+        document = publish_doctree(table_rst)
+        return document.children
 
 
 version = _short_version(release)
 
 rst_prolog = f"""
-    .. |version| replace:: {version}
-    .. |release| replace:: {release}
+.. |version| replace:: {version}
+.. |release| replace:: {release}
 """
 
 # -- General configuration ---------------------------------------------------
@@ -93,7 +102,7 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
     "sphinx.ext.githubpages",
-    "sphinx.ext.autoapi",
+    "sphinx.ext.apidoc",
     "sphinx_substitution_extensions",
 ]
 
@@ -116,3 +125,7 @@ html_theme_options = {
 # Syntax highlighting styles (light/dark)
 pygments_style = "sphinx"
 pygments_dark_style = "native"
+
+
+def setup(app):
+    app.add_directive('weather-parameters', WeatherParametersDirective)
