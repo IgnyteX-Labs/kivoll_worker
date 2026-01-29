@@ -57,7 +57,7 @@ To set these variables, use the Makefile.
 
 Run in docker container
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-To run the application inside a docker container, you can use the provided Dockerfile and Makefile.
+To run the application inside a docker container, you can use the provided local.Dockerfile and Makefile.
 
 .. code-block:: bash
 
@@ -70,3 +70,8 @@ If you want to run the container in detached mode, you can use
 .. code-block:: bash
 
     make docker-headless
+
+Deploy to ghcr.io
+---------------------
+The package will be automatically built and pushed to GitHub Container Registry
+with a github action.

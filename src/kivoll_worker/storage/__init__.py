@@ -128,7 +128,6 @@ def _apply_migration(
                 "applied_at": datetime.now().isoformat(),
             },
         )
-        conn.commit()
         cli.success(f"Applied migration {filepath}")
     except Exception as e:
         conn.rollback()
@@ -209,6 +208,7 @@ def init_db() -> None:
     try:
         cli.log("Applying pending migrations (if any)")
         _apply_migrations(conn)
+        conn.commit()
         cli.success("DB initialized and migrations applied", verbosity=logging.DEBUG)
     finally:
         conn.close()

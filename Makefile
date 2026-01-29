@@ -1,11 +1,17 @@
-.PHONY: install test test-cov lint format typecheck docs build clean check help docker-build docker-headless docker-shell env up-test-db down-test-db test-postgres test-docker db-up db-down db-rebuild db-reset docker-sync
+.PHONY: install test test lint format typecheck docs build clean check help docker-build docker-headless docker-shell env up-test-db down-test-db test-postgres test-docker db-up db-down db-rebuild db-reset docker-sync
 
 # Docker image name
 DOCKER_IMAGE ?= kivoll_worker:latest
 DOCKER_CONTAINER ?= kivoll_worker
 
+# Database variables
+DB_IMAGE = ghcr.io/ignytex-labs/kivoll_db:0.1.0
+DEV_CONTAINER = kivoll_dev_db
+DEV_VOLUME = pgdata
+DEV_PORT = 5432
+
 # Default target
-check: lint format typecheck test-cov test test-postgres
+check: lint format typecheck test
 
 help:
 	@echo "Running the application:"
@@ -14,6 +20,7 @@ help:
 	@echo "  build          	Build the package"
 	@echo "  clean          	Remove build artifacts"
 	@echo "  check          	Run lint, formatting, typecheck, and test (default)"
+	@echo "  test			Test codebase, filter with e.g., m=\"not integration\""
 	@echo ""
 	@echo "Code quality:"
 	@echo "  lint           	Run lint checks"
@@ -21,23 +28,14 @@ help:
 	@echo "  typecheck      	Run type checks"
 	@echo ""
 	@echo "Docker targets:"
-	@echo "  docker-build   	Build Docker image from deploy/Dockerfile"
+	@echo "  docker-build   	Build Docker image from deploy/local.Dockerfile"
 	@echo "  docker-shell   	Open interactive shell in Docker container (most useful for development)"
 	@echo "  docker-headless    Run Docker container headless"
 	@echo ""
 	@echo "Database management:"
 	@echo "  db-up          	Start the development database (PostgreSQL)"
 	@echo "  db-down        	Stop the development database"
-	@echo "  db-rebuild     	Rebuild the database from docker-compose.yml"
-	@echo "  db-reset       	Reset the database (down + up)"
-	@echo ""
-	@echo "Testing:"
-	@echo "  test           	Run tests (sqlite-only by default)"
-	@echo "  test-cov       	Run tests with coverage report"
-	@echo "  test-postgres  	Run Postgres integration tests"
-	@echo "  test-docker    	Run Docker build and integration tests"
-	@echo "  up-test-db     	Start local Postgres for tests (port 5433)"
-	@echo "  down-test-db   	Stop local Postgres for tests"
+	@echo "  db-reset       	Reset the database (down, remove volume, up)"
 	@echo ""
 	@echo "Documentation:"
 	@echo "  docs           	Build documentation"
@@ -45,21 +43,32 @@ help:
 	@echo ""
 	@echo "Quick start:"
 	@echo "  1. make install                            # Install dependencies"
-	@echo "  2. cp deploy/.env.example deploy/.env      # Copy env template"
-	@echo "  3. Edit deploy/.env with your settings"
+	@echo "  2. cp .env.example .env      # Copy env template"
+	@echo "  3. Edit .env with your settings"
 	@echo "  4. make env                                # Open shell with env loaded"
 	@echo "     OR: make docker-build && make docker-headless # Run in Docker (headless)"
 
 install:
 	uv sync --group dev
 
-test:
-	uv run pytest
-	@echo "pytest complete"
+# Allow passing pytest marker with `m` or arbitrary pytest args via `PYTEST_ARGS`.
+# Examples:
+#   make test m="not integration"
+#   make test PYTEST_ARGS="-k test_name"
+ifdef m
+PYTEST_MARK := -m "$(m)"
+else
+PYTEST_MARK :=
+endif
+PYTEST_EXTRA ?= $(PYTEST_ARGS) $(PYTEST_MARK)
 
-test-cov:
-	uv run pytest --cov=kivoll_worker --cov-report=term-missing --cov-report=html:coverage_html
+test:
+	uv run pytest $(PYTEST_EXTRA) \
+		--cov=kivoll_worker \
+		--cov-report=term-missing \
+		--cov-report=html:coverage_html
 	@echo "Coverage report generated. View at: file://$$(pwd)/coverage_html/index.html"
+
 
 lint:
 	uv run ruff check --fix
@@ -92,102 +101,66 @@ clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} +
 
 docker-build:
-	@echo "Building Docker image from deploy/Dockerfile..."
-	docker build -t $(DOCKER_IMAGE) -f deploy/Dockerfile .
+	@echo "Building Docker image from local.Dockerfile..."
+	docker build -t $(DOCKER_IMAGE) -f local.Dockerfile .
 
 docker-headless:
-	@if [ ! -f deploy/.env ]; then \
-		echo "Error: deploy/.env file not found!"; \
-		echo "Please copy deploy/.env.example to deploy/.env and update it with your settings."; \
-		exit 1; \
-	fi
-	@if [ ! -f deploy/.env.docker ]; then \
-		echo "Error: deploy/.env.docker file not found!"; \
+	@if [ ! -f .env ]; then \
+		echo "Error: .env file not found!"; \
+		echo "Please copy .env.example to .env and update it with your settings."; \
 		exit 1; \
 	fi
 	@echo "Starting Docker container with .env configuration..."
 	docker run --rm -d \
 		--name $(DOCKER_CONTAINER) \
-		--network local-kivoll-db_default \
-		--env-file deploy/.env \
-		--env-file deploy/.env.docker \
+		--network host \
+		--env-file .env \
+		--env DB_HOST=localhost:5432 \
 		-v $(PWD)/data:/app/data \
 		$(DOCKER_IMAGE)
 
 up: docker-headless
 
 docker-shell:
-	@if [ ! -f deploy/.env ]; then \
-		echo "Error: deploy/.env file not found!"; \
-		echo "Please copy deploy/.env.example to deploy/.env and update it with your settings."; \
-		exit 1; \
-	fi
-	@if [ ! -f deploy/.env.docker ]; then \
-		echo "Error: deploy/.env.docker file not found!"; \
+	@if [ ! -f .env ]; then \
+		echo "Error: .env file not found!"; \
+		echo "Please copy .env.example to .env and update it with your settings."; \
 		exit 1; \
 	fi
 	@echo "Opening shell in Docker container..."
 	docker run --rm -it \
 		--name $(DOCKER_CONTAINER)-shell \
-		--network local-kivoll-db_default \
-		--env-file deploy/.env \
-		--env-file deploy/.env.docker \
+		--network host \
+		--env-file .env \
+		--env DB_HOST=localhost:5432 \
 		-v $(PWD)/src:/app/src \
 		--entrypoint /bin/bash \
 		$(DOCKER_IMAGE)
 
 env:
-	@if [ ! -f deploy/.env ]; then \
-		echo "Error: deploy/.env file not found!"; \
-		echo "Please copy deploy/.env.example to deploy/.env and update it with your settings."; \
+	@if [ ! -f .env ]; then \
+		echo "Error: .env file not found!"; \
+		echo "Please copy .env.example to .env and update it with your settings."; \
 		exit 1; \
 	fi
 	@echo "To load environment variables, run:"
-	@echo "  set -a; . ./deploy/.env; set +a"
-
-
-up-test-db:
-	docker compose -f deploy/test/docker-compose.yml up -d --wait
-
-down-test-db:
-	docker compose -f deploy/test/docker-compose.yml down -v
-
-# Runs only the Postgres-marked tests (skips automatically if TEST_POSTGRES_URL not set).
-# We set TEST_POSTGRES_URL here so the tests are enabled.
-# Note: this uses port 5433 on purpose to avoid clashing with any local Postgres.
-
-test-postgres: up-test-db
-	TEST_POSTGRES_URL=postgresql+psycopg://postgres:postgres@localhost:5433/postgres \
-		uv run pytest -q -k postgres
-	$(MAKE) down-test-db
-
-# Docker integration tests - can be run locally or in CI
-# Tests that Docker builds succeed, containers start, and healthcheck passes
-test-docker:
-	@echo "Running Docker integration tests..."
-	./tests/docker/test_docker.sh
+	@echo "  set -a; . ./.env; set +a"
 
 # Database management targets
 db-up:
 	@echo "Starting development database..."
-	docker-compose -f deploy/db/docker-compose.yml up -d
+	docker run -d --name $(DEV_CONTAINER) --env-file .env --volume $(DEV_VOLUME):/var/lib/postgresql --restart unless-stopped --publish $(DEV_PORT):5432 $(DB_IMAGE) postgres -c log_statement=all
 	@echo "✓ Database is starting. Waiting for health check..."
-	@docker-compose -f deploy/db/docker-compose.yml ps
+	@docker ps --filter name=$(DEV_CONTAINER)
 
 db-down:
 	@echo "Stopping development database..."
-	docker-compose -f deploy/db/docker-compose.yml down
+	docker stop $(DEV_CONTAINER) || true
+	docker rm $(DEV_CONTAINER) || true
 	@echo "✓ Database stopped"
 
-db-rebuild: db-down
-	@echo "Rebuilding development database..."
-	docker-compose -f deploy/db/docker-compose.yml up -d --build
-	@echo "✓ Database rebuilt and started"
-	@docker-compose -f deploy/db/docker-compose.yml ps
-
-db-reset: db-down
-	@echo "Deleting database volume..."
-	docker volume rm $$(docker volume ls -q | grep pgdata) 2>/dev/null || true
-	docker-compose -f deploy/db/docker-compose.yml down -v
-	@echo "✓ Database reset complete"
+db-reset:
+	$(MAKE) db-down
+	docker volume rm $(DEV_VOLUME) || true
+	@echo "✓ Database data removed"
 

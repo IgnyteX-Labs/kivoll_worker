@@ -8,6 +8,10 @@ kivoll_worker = ["py.typed", "defaults/*.json", "storage/migrations/*.sql"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+markers = [
+    "database: tests that require a Postgres database",
+    "integration: tests build the docker image",
+]
 
 [tool.coverage.run]
 source = ["src/kivoll_worker"]
@@ -79,6 +83,8 @@ test = [
     "pytest>=9.0.2",
     "ruff>=0.14.10",
     "pytest-cov>=7.0.0",
+    "testcontainers[postgresql]>=4.13.0",
+    "python-dotenv>=1.2.1",
 ]
 docs = [
     "sphinx-substitution-extensions>=2025.12.15",

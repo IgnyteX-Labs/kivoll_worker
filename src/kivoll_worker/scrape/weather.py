@@ -22,6 +22,12 @@ from ..common.failure import log_error
 
 cli: Cliasi = Cliasi("uninitialized")
 
+
+# New exception type to make unsupported dialect failures explicit in tests
+class UnsupportedDialect(Exception):
+    """Raised when a database dialect is not supported for upserts."""
+
+
 Resolution = Literal["hourly", "daily", "current"]
 
 # Module-level cache for valid columns, loaded from database on first access
@@ -393,13 +399,21 @@ def _load_columns_from_db() -> None:
     }
 
 
-def _get_weather_table(conn: Connection, resolution: Resolution) -> Table:
+def _get_weather_table(conn: Connection, resolution: Resolution) -> Table | None:
     """Reflect and cache the weather table for the given resolution."""
     if resolution in _table_cache:
         return _table_cache[resolution]
 
-    metadata = MetaData()
-    table = Table(f"weather_{resolution}", metadata, autoload_with=conn)
+    try:
+        metadata = MetaData()
+        table = Table(f"weather_{resolution}", metadata, autoload_with=conn)
+    except SQLAlchemyError as e:
+        log_error(e, "weather:dbstore:reflect_table", False)
+        cli.fail(
+            f"Could not reflect weather table for resolution '{resolution}': {e}",
+            messages_stay_in_one_line=False,
+        )
+        return None
     _table_cache[resolution] = table
     return table
 
@@ -435,6 +449,13 @@ def validate_parameters(
     :param resolution: One of 'hourly', 'daily', 'current'
     :return: Tuple of (valid_parameters, invalid_parameters)
     """
+    # If no parameters were requested for this resolution, return empty lists
+    # without consulting the database or cache. This avoids loading DB state
+    # for resolutions that aren't used in the config and prevents raising
+    # an Unknown resolution error during validation of empty lists.
+    if not requested:
+        return [], []
+
     valid_cols = get_valid_columns(resolution)
     valid = [p for p in requested if p in valid_cols]
     invalid = [p for p in requested if p not in valid_cols]
@@ -477,6 +498,8 @@ def insert_weather_data(
         return False
 
     table = _get_weather_table(conn, resolution)
+    if table is None:
+        return False
 
     dialect_name = conn.dialect.name
     insert_stmt: sqlalchemy.sql.dml.Insert
@@ -485,10 +508,13 @@ def insert_weather_data(
     elif dialect_name in {"postgresql", "postgres"}:
         insert_stmt = pg_insert(table)
     else:
-        e = RuntimeError(f"Unsupported database dialect for upsert: {dialect_name}")
+        message = "Unsupported database dialect for upsert: " + dialect_name
+        e = UnsupportedDialect(message)
         log_error(e, "weather:dbstore:unsupported_dialect", False)
         cli.fail(str(e), messages_stay_in_one_line=False)
-        return False
+        # Raise instead of returning False so calling code and tests can detect
+        # this configuration/programming error immediately.
+        raise e
 
     # Build insert statement with conflict handling based on resolution
     # For hourly/daily: new composite key includes fetched_at, so conflicts are rare
