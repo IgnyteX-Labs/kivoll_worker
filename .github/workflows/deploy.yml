@@ -1,9 +1,8 @@
 name: Build & publish release image
 
 on:
-  push:
-    tags:
-      - "v*"   # or "*" if you don't prefix tags
+  release:
+    types: [ published ]
 
 jobs:
   build:
