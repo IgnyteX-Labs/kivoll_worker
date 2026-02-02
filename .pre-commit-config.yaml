@@ -6,24 +6,33 @@ repos:
         entry: uv run ruff check --force-exclude
         language: system
         types: [ python ]
+        # only run on Python files under src/ and tests/
+        files: ^(src/|tests/).+\.py$
 
       - id: ruff-format
         name: ruff-format
         entry: uv run ruff format --force-exclude
         language: system
         types: [ python ]
+        # only format Python files under src/ and tests/
+        files: ^(src/|tests/).+\.py$
 
       - id: mypy
         name: mypy
         entry: uv run mypy src
         language: system
         types: [ python ]
+        # mypy runs against the whole src tree; keep as a whole-project check
         pass_filenames: false
+        always_run: true
 
       - id: pytest
         name: pytest
         entry: uv run pytest
         language: system
         types: [ python ]
+        # Only trigger the test-run when source or tests change
+        files: ^(src/|tests/)
         pass_filenames: false
-
+        # Run on push to avoid running the full test-suite on every local commit
+        stages: [ pre-push ]
