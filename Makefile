@@ -1,4 +1,7 @@
-.PHONY: install test test lint format typecheck docs build clean check help docker-build docker-headless docker-shell env up-test-db down-test-db test-postgres test-docker db-up db-down db-rebuild db-reset docker-sync
+.PHONY: install test lint format typecheck docs build clean
+.PHONY: check help docker-build docker-headless docker-shell env
+.PHONY: up-test-db down-test-db test-postgres test-docker
+.PHONY: db-up db-down db-rebuild db-reset docker-sync check-env
 
 # Docker image name
 DOCKER_IMAGE ?= kivoll_worker:latest
@@ -105,12 +108,16 @@ docker-build:
 	@echo "Building Docker image from local.Dockerfile..."
 	docker build -t $(DOCKER_IMAGE) -f local.Dockerfile .
 
-docker-headless:
+# Centralized .env check used by multiple targets
+check-env:
 	@if [ ! -f .env ]; then \
 		echo "Error: .env file not found!"; \
-		echo "Please copy .env.example to .env and update it with your settings."; \
+		echo "Run: cp .env.example .env"; \
+		echo "Then edit .env with your settings."; \
 		exit 1; \
 	fi
+
+docker-headless: check-env
 	@echo "Starting Docker container with .env configuration..."
 	docker run --rm -d \
 		--name $(DOCKER_CONTAINER) \
@@ -122,12 +129,7 @@ docker-headless:
 
 up: docker-headless
 
-docker-shell:
-	@if [ ! -f .env ]; then \
-		echo "Error: .env file not found!"; \
-		echo "Please copy .env.example to .env and update it with your settings."; \
-		exit 1; \
-	fi
+docker-shell: check-env
 	@echo "Opening shell in Docker container..."
 	docker run --rm -it \
 		--name $(DOCKER_CONTAINER)-shell \
@@ -138,19 +140,21 @@ docker-shell:
 		--entrypoint /bin/bash \
 		$(DOCKER_IMAGE)
 
-env:
-	@if [ ! -f .env ]; then \
-		echo "Error: .env file not found!"; \
-		echo "Please copy .env.example to .env and update it with your settings."; \
-		exit 1; \
-	fi
+env: check-env
 	@echo "To load environment variables, run:"
 	@echo "  set -a; . ./.env; set +a"
 
 # Database management targets
-db-up:
+db-up: check-env
 	@echo "Starting development database..."
-	docker run -d --name $(DEV_CONTAINER) --env-file .env --volume $(DEV_VOLUME):/var/lib/postgresql --restart unless-stopped --publish $(DEV_PORT):5432 $(DB_IMAGE) postgres -c log_statement=all
+	docker run -d \
+		--name $(DEV_CONTAINER) \
+		--env-file .env \
+		--volume $(DEV_VOLUME):/var/lib/postgresql \
+		--restart unless-stopped \
+		--publish $(DEV_PORT):5432 \
+		$(DB_IMAGE) \
+		postgres -c log_statement=all
 	@echo "✓ Database is starting. Waiting for health check..."
 	@docker ps --filter name=$(DEV_CONTAINER)
 
