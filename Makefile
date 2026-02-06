@@ -1,7 +1,6 @@
 .PHONY: install test lint format typecheck docs build clean
 .PHONY: check help docker-build docker-headless docker-shell env
-.PHONY: up-test-db down-test-db test-postgres test-docker
-.PHONY: db-up db-down db-rebuild db-reset docker-sync check-env
+.PHONY: db-up db-down db-reset check-env
 
 # Docker image name
 DOCKER_IMAGE ?= kivoll_worker:latest
