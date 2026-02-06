@@ -1,8 +1,8 @@
 from argparse import Namespace
 from unittest.mock import Mock, patch
 
+import niquests
 import pytest
-from requests.exceptions import HTTPError
 from sqlalchemy.exc import SQLAlchemyError
 
 from kivoll_worker.scrape import kletterzentrum
@@ -61,7 +61,7 @@ def test_kletterzentrum_successful_fetch_and_store(
     monkeypatch.setattr(kletterzentrum, "config", mock_kletterzentrum_config)
     monkeypatch.setattr(kletterzentrum, "__short_version__", "1.0")
 
-    # Mock requests
+    # Mock session
     mock_response = Mock()
     mock_response.text = """
     <html>
@@ -72,18 +72,22 @@ def test_kletterzentrum_successful_fetch_and_store(
     """
     mock_response.raise_for_status = Mock()
 
+    mock_session = Mock()
+    mock_session.get.return_value = mock_response
+
     # Mock db
     mock_conn = Mock()
     mock_conn.execute = Mock()
 
     with patch(
-        "kivoll_worker.scrape.kletterzentrum.requests.get",
-        return_value=mock_response,
+        "kivoll_worker.scrape.kletterzentrum.create_scrape_session",
+        return_value=mock_session,
     ):
         result = kletterzentrum.kletterzentrum(args, mock_conn)
 
     assert result is True
     mock_conn.execute.assert_called_once()
+    mock_session.get.assert_called_once()
 
 
 def test_kletterzentrum_http_error(
@@ -99,13 +103,18 @@ def test_kletterzentrum_http_error(
     monkeypatch.setattr(kletterzentrum, "config", mock_kletterzentrum_config)
     monkeypatch.setattr(kletterzentrum, "__short_version__", "1.0")
 
-    # Mock requests to raise HTTPError
+    # Mock session to raise HTTPError
     mock_response = Mock()
-    mock_response.raise_for_status.side_effect = HTTPError("HTTP Error")
+    mock_response.raise_for_status.side_effect = niquests.exceptions.HTTPError(
+        "HTTP Error"
+    )
+
+    mock_session = Mock()
+    mock_session.get.return_value = mock_response
 
     with patch(
-        "kivoll_worker.scrape.kletterzentrum.requests.get",
-        return_value=mock_response,
+        "kivoll_worker.scrape.kletterzentrum.create_scrape_session",
+        return_value=mock_session,
     ):
         result = kletterzentrum.kletterzentrum(args, Mock())
 
@@ -148,14 +157,17 @@ def test_kletterzentrum_config_error_user_agent(
     monkeypatch.setattr(kletterzentrum, "config", mock_config)
     monkeypatch.setattr(kletterzentrum, "__short_version__", "1.0")
 
-    # Mock requests
+    # Mock session
     mock_response = Mock()
     mock_response.text = "<html></html>"
     mock_response.raise_for_status = Mock()
 
+    mock_session = Mock()
+    mock_session.get.return_value = mock_response
+
     with patch(
-        "kivoll_worker.scrape.kletterzentrum.requests.get",
-        return_value=mock_response,
+        "kivoll_worker.scrape.kletterzentrum.create_scrape_session",
+        return_value=mock_session,
     ):
         result = kletterzentrum.kletterzentrum(args, Mock())
 
@@ -176,7 +188,7 @@ def test_kletterzentrum_db_error(
     monkeypatch.setattr(kletterzentrum, "config", mock_kletterzentrum_config)
     monkeypatch.setattr(kletterzentrum, "__short_version__", "1.0")
 
-    # Mock requests
+    # Mock session
     mock_response = Mock()
     mock_response.text = """
     <html>
@@ -187,13 +199,16 @@ def test_kletterzentrum_db_error(
     """
     mock_response.raise_for_status = Mock()
 
+    mock_session = Mock()
+    mock_session.get.return_value = mock_response
+
     # Mock db to raise error
     mock_conn = Mock()
     mock_conn.execute.side_effect = SQLAlchemyError("DB Error")
 
     with patch(
-        "kivoll_worker.scrape.kletterzentrum.requests.get",
-        return_value=mock_response,
+        "kivoll_worker.scrape.kletterzentrum.create_scrape_session",
+        return_value=mock_session,
     ):
         result = kletterzentrum.kletterzentrum(args, mock_conn)
 
@@ -218,16 +233,19 @@ def test_kletterzentrum_parsing_failure(
     monkeypatch.setattr(kletterzentrum, "config", mock_kletterzentrum_config)
     monkeypatch.setattr(kletterzentrum, "__short_version__", "1.0")
 
-    # Mock requests with invalid HTML
+    # Mock session with invalid HTML
     mock_response = Mock()
     mock_response.text = "<html>Invalid</html>"
     mock_response.raise_for_status = Mock()
 
+    mock_session = Mock()
+    mock_session.get.return_value = mock_response
+
     mock_conn = Mock()
 
     with patch(
-        "kivoll_worker.scrape.kletterzentrum.requests.get",
-        return_value=mock_response,
+        "kivoll_worker.scrape.kletterzentrum.create_scrape_session",
+        return_value=mock_session,
     ):
         result = kletterzentrum.kletterzentrum(args, mock_conn)
 

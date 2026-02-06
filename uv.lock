@@ -491,13 +491,12 @@ dependencies = [
     { name = "apscheduler" },
     { name = "argparse" },
     { name = "cliasi" },
+    { name = "niquests" },
     { name = "numpy" },
     { name = "openmeteo-requests" },
     { name = "pandas" },
     { name = "psycopg", extra = ["binary"] },
-    { name = "requests" },
     { name = "requests-cache" },
-    { name = "retry-requests" },
     { name = "singlejson" },
     { name = "sqlalchemy" },
 ]
@@ -514,7 +513,6 @@ dev = [
     { name = "sphinx" },
     { name = "sphinx-substitution-extensions" },
     { name = "testcontainers" },
-    { name = "types-requests" },
 ]
 docs = [
     { name = "furo" },
@@ -535,13 +533,12 @@ requires-dist = [
     { name = "apscheduler", specifier = ">=3.11.2" },
     { name = "argparse", specifier = ">=1.4.0" },
     { name = "cliasi", specifier = ">=0.4.2" },
+    { name = "niquests", specifier = ">=3.16.1" },
     { name = "numpy", specifier = ">=2.2.6" },
     { name = "openmeteo-requests", specifier = ">=1.7.5" },
     { name = "pandas", specifier = ">=3.0.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">3.1" },
-    { name = "requests", specifier = ">=2.32.5" },
     { name = "requests-cache", specifier = ">=1.3.0" },
-    { name = "retry-requests", specifier = ">=2.0.0" },
     { name = "singlejson", specifier = ">=0.5.2" },
     { name = "sqlalchemy", specifier = ">=2.0.45" },
 ]
@@ -558,7 +555,6 @@ dev = [
     { name = "sphinx", specifier = ">=7" },
     { name = "sphinx-substitution-extensions", specifier = ">=2025.12.15" },
     { name = "testcontainers", extras = ["postgres"], specifier = ">=4.13.0" },
-    { name = "types-requests", specifier = ">=2.32.4.20260107" },
 ]
 docs = [
     { name = "furo", specifier = ">=2024.1.29" },
@@ -1261,19 +1257,6 @@ wheels = [
 ]
 
 [[package]]
-name = "retry-requests"
-version = "2.0.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "requests" },
-    { name = "urllib3" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/1e/da/6e961557733660bef8d095a1d81423a3707486e2b2ecd2c5ad5ad8d2f59d/retry-requests-2.0.0.tar.gz", hash = "sha256:3d02135e5aafedf09240414182fc7389c5d2b4de0252daba0054c9d6a27e7639", size = 16084, upload-time = "2023-05-28T18:33:08.196Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b1/f3/8ce908497bebbc2790ef06240a2c0fb28c096abb59062d88f85090464a5f/retry_requests-2.0.0-py3-none-any.whl", hash = "sha256:38e8e3f55051e7b7915c1768884269097865a5da2ea87d5dcafd6ba9498c363f", size = 15772, upload-time = "2023-05-28T18:33:05.868Z" },
-]
-
-[[package]]
 name = "roman-numerals"
 version = "4.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1514,18 +1497,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ad/5a/d24f5c7ef787fc152b1e4e4cfb84ef9364dbf165b3c7f7817e2f2583f749/testcontainers-4.14.0.tar.gz", hash = "sha256:3b2d4fa487af23024f00fcaa2d1cf4a5c6ad0c22e638a49799813cb49b3176c7", size = 79885, upload-time = "2026-01-07T23:35:22.825Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ea/c4/53efc88d890d7dd38337424a83bbff32007d9d3390a79a4b53bfddaa64e8/testcontainers-4.14.0-py3-none-any.whl", hash = "sha256:64e79b6b1e6d2b9b9e125539d35056caab4be739f7b7158c816d717f3596fa59", size = 125385, upload-time = "2026-01-07T23:35:21.343Z" },
-]
-
-[[package]]
-name = "types-requests"
-version = "2.32.4.20260107"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "urllib3" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/0f/f3/a0663907082280664d745929205a89d41dffb29e89a50f753af7d57d0a96/types_requests-2.32.4.20260107.tar.gz", hash = "sha256:018a11ac158f801bfa84857ddec1650750e393df8a004a8a9ae2a9bec6fcb24f", size = 23165, upload-time = "2026-01-07T03:20:54.091Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/1c/12/709ea261f2bf91ef0a26a9eed20f2623227a8ed85610c1e54c5805692ecb/types_requests-2.32.4.20260107-py3-none-any.whl", hash = "sha256:b703fe72f8ce5b31ef031264fe9395cac8f46a04661a79f7ed31a80fb308730d", size = 20676, upload-time = "2026-01-07T03:20:52.929Z" },
 ]
 
 [[package]]

@@ -3,6 +3,7 @@
 import logging
 import time
 from collections.abc import Sequence
+from datetime import timedelta
 from typing import Any, Literal
 
 import openmeteo_requests
@@ -17,6 +18,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from ..common.config import config
 from ..common.failure import log_error
+from .session import create_cached_scrape_session
 
 cli: Cliasi = Cliasi("uninitialized")
 
@@ -45,7 +47,9 @@ def weather(connection: Connection) -> bool:
     """
     global cli
     cli = Cliasi("weather")
-    openmeteo = openmeteo_requests.Client()
+    openmeteo = openmeteo_requests.Client(
+        session=create_cached_scrape_session(cache_expire_after=timedelta(minutes=15))
+    )
     url: str
     parameters: dict[str, Any]
     locations: dict[str, dict[str, float | bool]]

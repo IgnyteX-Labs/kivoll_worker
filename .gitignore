@@ -4,6 +4,7 @@ src/kivoll_worker/__about__.py
 data/
 
 .env
+.cache
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
