@@ -1,4 +1,6 @@
-.PHONY: install test test lint format typecheck docs build clean check help docker-build docker-headless docker-shell env up-test-db down-test-db test-postgres test-docker db-up db-down db-rebuild db-reset docker-sync
+.PHONY: install test lint format typecheck docs build clean
+.PHONY: check help docker-build docker-headless docker-shell env
+.PHONY: db-up db-down db-reset check-env
 
 # Docker image name
 DOCKER_IMAGE ?= kivoll_worker:latest
@@ -14,39 +16,39 @@ DEV_PORT = 5432
 check: lint format typecheck test
 
 help:
-	@echo "Running the application:"
-	@echo "  install        	Install dependencies"
-	@echo "  env            	Open shell with .env environment loaded"
-	@echo "  build          	Build the package"
-	@echo "  clean          	Remove build artifacts"
-	@echo "  check          	Run lint, formatting, typecheck, and test (default)"
-	@echo "  test			Test codebase, filter with e.g., m=\"not integration\""
-	@echo ""
-	@echo "Code quality:"
-	@echo "  lint           	Run lint checks"
-	@echo "  format         	Run ruff formatting"
-	@echo "  typecheck      	Run type checks"
-	@echo ""
-	@echo "Docker targets:"
-	@echo "  docker-build   	Build Docker image from deploy/local.Dockerfile"
-	@echo "  docker-shell   	Open interactive shell in Docker container (most useful for development)"
-	@echo "  docker-headless    Run Docker container headless"
-	@echo ""
-	@echo "Database management:"
-	@echo "  db-up          	Start the development database (PostgreSQL)"
-	@echo "  db-down        	Stop the development database"
-	@echo "  db-reset       	Reset the database (down, remove volume, up)"
-	@echo ""
-	@echo "Documentation:"
-	@echo "  docs           	Build documentation"
-	@echo "  help           	Show this help message"
-	@echo ""
-	@echo "Quick start:"
-	@echo "  1. make install                            # Install dependencies"
-	@echo "  2. cp .env.example .env      # Copy env template"
-	@echo "  3. Edit .env with your settings"
-	@echo "  4. make env                                # Open shell with env loaded"
-	@echo "     OR: make docker-build && make docker-headless # Run in Docker (headless)"
+	@printf "Running the application:\n"
+	@printf "\n"
+	@printf "  %-22s %s\n" "install" "Install dependencies"
+	@printf "  %-22s %s\n" "env" "Open shell with .env environment loaded"
+	@printf "  %-22s %s\n" "build" "Build the package"
+	@printf "  %-22s %s\n" "clean" "Remove build artifacts"
+	@printf "  %-22s %s\n" "check" "Run lint, formatting, typecheck, and test (default)"
+	@printf "  %-22s %s\n" "test" "Test codebase (use m=\"not integration\")"
+	@printf "\n"
+	@printf "Code quality:\n"
+	@printf "  %-22s %s\n" "lint" "Run lint checks"
+	@printf "  %-22s %s\n" "format" "Run ruff formatting"
+	@printf "  %-22s %s\n" "typecheck" "Run type checks"
+	@printf "\n"
+	@printf "Docker targets:\n"
+	@printf "  %-22s %s\n" "docker-build" "Build Docker image from local.Dockerfile"
+	@printf "  %-22s %s\n" "docker-shell" "Open interactive shell in Docker container"
+	@printf "  %-22s %s\n" "docker-headless" "Run Docker container headless"
+	@printf "\n"
+	@printf "Database management:\n"
+	@printf "  %-22s %s\n" "db-up" "Start the development database (PostgreSQL)"
+	@printf "  %-22s %s\n" "db-down" "Stop the development database"
+	@printf "  %-22s %s\n" "db-reset" "Reset the database (down, remove volume)"
+	@printf "\n"
+	@printf "Documentation:\n"
+	@printf "  %-22s %s\n" "docs" "Build documentation"
+	@printf "  %-22s %s\n" "help" "Show this help message"
+	@printf "\n"
+	@printf "Quick start:\n"
+	@printf "  1. make install\n"
+	@printf "  2. cp .env.example .env\n"
+	@printf "  3. Edit .env with your settings\n"
+	@printf "  4. Run: set -a; . ./.env; set +a\n"
 
 install:
 	uv sync --group dev
@@ -105,12 +107,16 @@ docker-build:
 	@echo "Building Docker image from local.Dockerfile..."
 	docker build -t $(DOCKER_IMAGE) -f local.Dockerfile .
 
-docker-headless:
+# Centralized .env check used by multiple targets
+check-env:
 	@if [ ! -f .env ]; then \
 		echo "Error: .env file not found!"; \
-		echo "Please copy .env.example to .env and update it with your settings."; \
+		echo "Run: cp .env.example .env"; \
+		echo "Then edit .env with your settings."; \
 		exit 1; \
 	fi
+
+docker-headless: check-env
 	@echo "Starting Docker container with .env configuration..."
 	docker run --rm -d \
 		--name $(DOCKER_CONTAINER) \
@@ -122,12 +128,7 @@ docker-headless:
 
 up: docker-headless
 
-docker-shell:
-	@if [ ! -f .env ]; then \
-		echo "Error: .env file not found!"; \
-		echo "Please copy .env.example to .env and update it with your settings."; \
-		exit 1; \
-	fi
+docker-shell: check-env
 	@echo "Opening shell in Docker container..."
 	docker run --rm -it \
 		--name $(DOCKER_CONTAINER)-shell \
@@ -138,19 +139,21 @@ docker-shell:
 		--entrypoint /bin/bash \
 		$(DOCKER_IMAGE)
 
-env:
-	@if [ ! -f .env ]; then \
-		echo "Error: .env file not found!"; \
-		echo "Please copy .env.example to .env and update it with your settings."; \
-		exit 1; \
-	fi
+env: check-env
 	@echo "To load environment variables, run:"
 	@echo "  set -a; . ./.env; set +a"
 
 # Database management targets
-db-up:
+db-up: check-env
 	@echo "Starting development database..."
-	docker run -d --name $(DEV_CONTAINER) --env-file .env --volume $(DEV_VOLUME):/var/lib/postgresql --restart unless-stopped --publish $(DEV_PORT):5432 $(DB_IMAGE) postgres -c log_statement=all
+	docker run -d \
+		--name $(DEV_CONTAINER) \
+		--env-file .env \
+		--volume $(DEV_VOLUME):/var/lib/postgresql \
+		--restart unless-stopped \
+		--publish $(DEV_PORT):5432 \
+		$(DB_IMAGE) \
+		postgres -c log_statement=all
 	@echo "✓ Database is starting. Waiting for health check..."
 	@docker ps --filter name=$(DEV_CONTAINER)
 
