@@ -1,4 +1,6 @@
 import threading
+from collections.abc import Generator
+from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import niquests
@@ -56,8 +58,19 @@ class _ControlledHandler(BaseHTTPRequestHandler):
         return
 
 
-def _start_server(responses: list[tuple]) -> tuple[HTTPServer, threading.Thread]:
-    """Start an HTTP server that will serve the provided responses in order."""
+@contextmanager
+def _test_server(responses: list[tuple]) -> Generator[tuple[str, int], None, None]:
+    """Context manager that starts an HTTP server and yields (url_base, port).
+
+    Automatically handles server startup, provides the server details, and ensures
+    proper cleanup (shutdown and thread join) on exit.
+
+    Args:
+        responses: List of (status, body, headers) tuples to serve in order
+
+    Yields:
+        Tuple of (url_base, port) where url_base is "http://127.0.0.1:{port}"
+    """
     handler_cls = _ControlledHandler
     handler_cls.responses = list(responses)
     handler_cls.recorded_paths = []
@@ -72,7 +85,16 @@ def _start_server(responses: list[tuple]) -> tuple[HTTPServer, threading.Thread]
 
     thread = threading.Thread(target=_serve, daemon=True)
     thread.start()
-    return server, thread
+
+    port = server.server_address[1]
+    url_base = f"http://127.0.0.1:{port}"
+
+    try:
+        yield url_base, port
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=1)
 
 
 def test_retry_and_cache_integration(tmp_path) -> None:
@@ -90,41 +112,34 @@ def test_retry_and_cache_integration(tmp_path) -> None:
         (500, "server error 2", {}),
         (200, "final-ok", {"Content-Type": "text/plain"}),
     ]
-    server, thread = _start_server(responses)
-    port = server.server_address[1]
-    url = f"http://127.0.0.1:{port}/test"
 
-    # Non-cached session: should retry and eventually get 'final-ok'
-    s = session_mod.create_scrape_session()
-    resp = s.get(url)
-    assert resp.status_code == 200
-    assert resp.text == "final-ok"
+    with _test_server(responses) as (url_base, port):
+        url = f"{url_base}/test"
+
+        # Non-cached session: should retry and eventually get 'final-ok'
+        s = session_mod.create_scrape_session()
+        resp = s.get(url)
+        assert resp.status_code == 200
+        assert resp.text == "final-ok"
 
     # Now test caching: create a cached session with an on-disk cache in tmp_path
     cache_name = str(tmp_path / "cachedb")
-    # Prime the cache: first request will be successful (server already used 3 responses), so to ensure cache we insert a 200 response first
-    # Restart server to return 200 first, then 500 to prove cache serving on subsequent call
-    server.shutdown()
-    thread.join(timeout=1)
 
     # Start a fresh server that returns 200 first, then 500
     responses2 = [
         (200, "cached-body", {"Content-Type": "text/plain"}),
         (500, "later-500", {}),
     ]
-    server2, thread2 = _start_server(responses2)
-    port2 = server2.server_address[1]
-    url2 = f"http://127.0.0.1:{port2}/cachetest"
 
-    cs = session_mod.create_cached_scrape_session(
-        cache_expire_after=60, cache_name=cache_name
-    )
-    r1 = cs.get(url2)
-    assert r1.status_code == 200
-    assert r1.text == "cached-body"
-    # Ensure subsequent request hits cache: stop server to force cache-use
-    server2.shutdown()
-    thread2.join(timeout=1)
+    with _test_server(responses2) as (url_base2, port2):
+        url2 = f"{url_base2}/cachetest"
+
+        cs = session_mod.create_cached_scrape_session(
+            cache_expire_after=60, cache_name=cache_name
+        )
+        r1 = cs.get(url2)
+        assert r1.status_code == 200
+        assert r1.text == "cached-body"
 
     # New session using same cache should return cached response even though server is down
     cs2 = session_mod.create_cached_scrape_session(
@@ -133,12 +148,6 @@ def test_retry_and_cache_integration(tmp_path) -> None:
     r2 = cs2.get(url2)
     assert r2.status_code == 200
     assert r2.text == "cached-body"
-
-    # Cleanup
-    try:
-        server2.server_close()
-    except Exception:
-        pass
 
 
 def test_retry_stops_after_max_attempts() -> None:
@@ -153,46 +162,35 @@ def test_retry_stops_after_max_attempts() -> None:
     # Prepare server to return many 500 errors (more than the retry limit)
     # We'll return 10 errors to ensure we have more than enough to exceed the limit
     responses = [(500, f"server error {i}", {}) for i in range(10)]
-    server, thread = _start_server(responses)
-    port = server.server_address[1]
-    url = f"http://127.0.0.1:{port}/test-retry-limit"
 
-    # Clear recorded paths before test
-    _ControlledHandler.recorded_paths = []
+    with _test_server(responses) as (url_base, port):
+        url = f"{url_base}/test-retry-limit"
 
-    # Create session with retry configuration (TOTAL_RETRIES = 3)
-    s = session_mod.create_scrape_session()
+        # Clear recorded paths before test
+        _ControlledHandler.recorded_paths = []
 
-    # Make the request - it should exhaust retries and raise RetryError
-    # This proves the retry mechanism stops instead of continuing infinitely
-    try:
-        resp = s.get(url)
-        # If we get here, the test failed - retries should have been exhausted
-        raise AssertionError(
-            f"Expected RetryError to be raised after exhausting retries, "
-            f"but got response with status {resp.status_code}"
+        # Create session with retry configuration (TOTAL_RETRIES = 3)
+        s = session_mod.create_scrape_session()
+
+        # Make the request - it should exhaust retries and raise RetryError
+        # This proves the retry mechanism stops instead of continuing infinitely
+        try:
+            resp = s.get(url)
+            # If we get here, the test failed - retries should have been exhausted
+            raise AssertionError(
+                f"Expected RetryError to be raised after exhausting retries, "
+                f"but got response with status {resp.status_code}"
+            )
+        except niquests.exceptions.RetryError:
+            pass
+        # CRITICAL: Verify exactly 4 requests were made (1 initial + 3 retries)
+        # This proves the retry mechanism stops and doesn't continue infinitely
+        assert len(_ControlledHandler.recorded_paths) == 4, (
+            f"Expected exactly 4 requests (1 initial + 3 retries), "
+            f"but got {len(_ControlledHandler.recorded_paths)}: {_ControlledHandler.recorded_paths}"
         )
-    except niquests.exceptions.RetryError as e:
-        # This is the expected behavior - retries were exhausted
-        assert "Max retries exceeded" in str(e)
-        assert "too many 500 error responses" in str(e)
 
-    # CRITICAL: Verify exactly 4 requests were made (1 initial + 3 retries)
-    # This proves the retry mechanism stops and doesn't continue infinitely
-    assert len(_ControlledHandler.recorded_paths) == 4, (
-        f"Expected exactly 4 requests (1 initial + 3 retries), "
-        f"but got {len(_ControlledHandler.recorded_paths)}: {_ControlledHandler.recorded_paths}"
-    )
-
-    # All paths should be the same (our test endpoint)
-    assert all(
-        path == "/test-retry-limit" for path in _ControlledHandler.recorded_paths
-    )
-
-    # Cleanup
-    server.shutdown()
-    thread.join(timeout=1)
-    try:
-        server.server_close()
-    except Exception:
-        pass
+        # All paths should be the same (our test endpoint)
+        assert all(
+            path == "/test-retry-limit" for path in _ControlledHandler.recorded_paths
+        )
