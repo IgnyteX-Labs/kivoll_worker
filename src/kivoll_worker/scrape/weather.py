@@ -380,8 +380,6 @@ def _load_columns_from_db(connection: Connection) -> None:
             messages_stay_in_one_line=False,
         )
         raise
-    finally:
-        connection.close()
 
     hourly: set[str] = set()
     daily: set[str] = set()
