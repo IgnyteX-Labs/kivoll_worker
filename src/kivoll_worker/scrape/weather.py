@@ -47,9 +47,6 @@ def weather(connection: Connection) -> bool:
     """
     global cli
     cli = Cliasi("weather")
-    openmeteo = openmeteo_requests.Client(
-        session=create_cached_scrape_session(cache_expire_after=timedelta(minutes=15))
-    )
     url: str
     parameters: dict[str, Any]
     locations: dict[str, dict[str, float | bool]]
@@ -169,15 +166,22 @@ def weather(connection: Connection) -> bool:
         f"Fetching weather at {url}", verbosity=logging.DEBUG
     )
     responses: list[WeatherApiResponse]
-    try:
-        responses = openmeteo.weather_api(url, parameters)
-    except OpenMeteoRequestsError as e:
-        task.stop()
-        cli.fail(
-            "Could not fetch weather data! (HTTPError)", messages_stay_in_one_line=False
-        )
-        log_error(e, "weather:config:request", False)
-        return False
+
+    with create_cached_scrape_session(
+        cache_expire_after=timedelta(minutes=15)
+    ) as openmeteo_session:
+        openmeteo = openmeteo_requests.Client(session=openmeteo_session)
+
+        try:
+            responses = openmeteo.weather_api(url, parameters)
+        except OpenMeteoRequestsError as e:
+            task.stop()
+            cli.fail(
+                "Could not fetch weather data! (HTTPError)",
+                messages_stay_in_one_line=False,
+            )
+            log_error(e, "weather:config:request", False)
+            return False
 
     task.stop()
     cli.success("Weather data fetched successfully!", verbosity=logging.DEBUG)

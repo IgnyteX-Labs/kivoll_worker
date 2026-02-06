@@ -261,6 +261,9 @@ def kletterzentrum(args: Namespace, connection: Connection) -> bool:
             log_error(e, "kletterzentrum:fetch:http_error", False)
             return False
 
+        finally:
+            session.close()
+
         task.stop() if task else None
         cli.success("Kletterzentrum website fetched", logging.DEBUG)
         cli.info("Writing html to data/last_request.html")
