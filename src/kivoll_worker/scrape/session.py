@@ -22,20 +22,14 @@ class CachedSession(requests_cache.session.CacheMixin, niquests.Session):  # typ
 def create_cached_scrape_session(
     cache_expire_after: None | int | float | str | datetime | timedelta,
     cache_name: str = ".cache",
-    backend: str | None = None,
 ) -> CachedSession:
     """
     Create a CachedSession with cache expiration time and retries configured.
     :param cache_expire_after: The expiration time for the cache.
     :param cache_name: The cache name/path to use (default: ".cache").
-    :param backend: Optional requests_cache backend to pass through.
     :return: A CachedSession instance with retries configured.
     """
-    # requests_cache.CachedSession accepts cache_name and backend keyword
-    kwargs = {"expire_after": cache_expire_after}
-    if backend is not None:
-        kwargs["backend"] = backend
-    session = CachedSession(cache_name, **kwargs)
+    session = CachedSession(cache_name, expire_after=cache_expire_after)
     set_reties_property(session)
     return session
 
