@@ -38,7 +38,7 @@ help:
 	@printf "Database management:\n"
 	@printf "  %-22s %s\n" "db-up" "Start the development database (PostgreSQL)"
 	@printf "  %-22s %s\n" "db-down" "Stop the development database"
-	@printf "  %-22s %s\n" "db-reset" "Reset the database (down, remove volume, up)"
+	@printf "  %-22s %s\n" "db-reset" "Reset the database (down, remove volume)"
 	@printf "\n"
 	@printf "Documentation:\n"
 	@printf "  %-22s %s\n" "docs" "Build documentation"
