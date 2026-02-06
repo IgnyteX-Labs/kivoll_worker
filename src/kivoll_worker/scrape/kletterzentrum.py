@@ -264,7 +264,17 @@ def kletterzentrum(args: Namespace, connection: Connection) -> bool:
         task.stop() if task else None
         cli.success("Kletterzentrum website fetched", logging.DEBUG)
         cli.info("Writing html to data/last_request.html")
-        html = response.text or "no response html =("
+        html = ""
+        resp = response.text
+        if not resp or not resp.strip():
+            cli.warn("Received empty HTML from Kletterzentrum website")
+            log_error(
+                ValueError("Received empty HTML from Kletterzentrum website"),
+                "kletterzentrum:fetch:empty_html",
+                False,
+            )
+        else:
+            html = resp
         try:
             _cache_html(html)
         except Exception as e:
