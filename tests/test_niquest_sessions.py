@@ -12,7 +12,7 @@ def test_default_session_retries_configuration() -> None:
     """Ensure create_scrape_session sets a RetryConfiguration with the expected values."""
     s = session_mod.create_scrape_session()
     assert isinstance(s.retries, niquests.RetryConfiguration)
-    # Compare the important fields we set in set_reties_property
+    # Compare the important fields we set in set_retries_property to ensure the configuration is correct
     assert s.retries.total == 3
     assert s.retries.backoff_factor == 0
     assert s.retries.status_forcelist == [429, 500, 502, 503, 504]

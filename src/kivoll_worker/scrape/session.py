@@ -30,13 +30,13 @@ def create_cached_scrape_session(
     :return: A CachedSession instance with retries configured.
     """
     session = CachedSession(cache_name, expire_after=cache_expire_after)
-    set_reties_property(session)
+    set_retries_property(session)
     return session
 
 
-def set_reties_property(session: niquests.Session | CachedSession) -> None:
+def set_retries_property(session: niquests.Session | CachedSession) -> None:
     """
-    Set the retries property on ScrapeSession to return the niquests.RetryConfiguration.
+    Set the retries property on a Session to return the niquests.RetryConfiguration.
 
     :param session: The session to set the retries property on.
     """
@@ -71,5 +71,5 @@ def create_scrape_session() -> niquests.Session:
     :return: A niquests Session instance with retries configured.
     """
     session = niquests.Session()
-    set_reties_property(session)
+    set_retries_property(session)
     return session
