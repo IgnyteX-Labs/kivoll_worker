@@ -11,10 +11,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-import requests
+import niquests
 from bs4 import BeautifulSoup
 from cliasi import Cliasi
-from requests import HTTPError
 from sqlalchemy import Connection, text
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -22,6 +21,7 @@ from .. import __short_version__
 from ..common import config
 from ..common.config import get_tz
 from ..common.failure import log_error
+from .session import create_scrape_session
 
 cli: Cliasi = Cliasi("uninitialized")
 
@@ -203,6 +203,7 @@ def kletterzentrum(args: Namespace, connection: Connection) -> bool:
     """
     global cli
     cli = Cliasi("KI")
+    html: str
     if args.dry_run:
         cli.warn(
             "Using cached HTML (DRY RUN). Will not save data to database",
@@ -243,14 +244,15 @@ def kletterzentrum(args: Namespace, connection: Connection) -> bool:
             )
             return False
 
+        session = create_scrape_session()
         task = cli.animate_message_download_non_blocking(
             f"Fetching KI occupancy at {url}", verbosity=logging.DEBUG
         )
         try:
-            response = requests.get(url, headers=headers)
+            response = session.get(url, headers=headers)
             task.update("Fetch complete, checking response") if task else None
             response.raise_for_status()
-        except HTTPError as e:
+        except niquests.exceptions.HTTPError as e:
             task.stop() if task else None
             cli.fail(
                 "Could not fetch data for Kletterzentrum!",
@@ -259,10 +261,23 @@ def kletterzentrum(args: Namespace, connection: Connection) -> bool:
             log_error(e, "kletterzentrum:fetch:http_error", False)
             return False
 
+        finally:
+            session.close()
+
         task.stop() if task else None
         cli.success("Kletterzentrum website fetched", logging.DEBUG)
         cli.info("Writing html to data/last_request.html")
-        html = response.text
+        html = ""
+        resp = response.text
+        if not resp or not resp.strip():
+            cli.warn("Received empty HTML from Kletterzentrum website")
+            log_error(
+                ValueError("Received empty HTML from Kletterzentrum website"),
+                "kletterzentrum:fetch:empty_html",
+                False,
+            )
+        else:
+            html = resp
         try:
             _cache_html(html)
         except Exception as e:
