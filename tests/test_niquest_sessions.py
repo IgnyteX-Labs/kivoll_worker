@@ -80,7 +80,8 @@ def _test_server(responses: list[tuple]) -> Generator[tuple[str, int], None, Non
     def _serve() -> None:
         try:
             server.serve_forever()
-        except Exception:
+        except (KeyboardInterrupt, SystemExit):
+            # Expected when server.shutdown() is called from the main thread
             pass
 
     thread = threading.Thread(target=_serve, daemon=True)
