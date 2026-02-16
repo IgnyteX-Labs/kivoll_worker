@@ -317,7 +317,7 @@ def kletterzentrum(args: Namespace, connection: Connection) -> bool:
         cli.success("Kletterzentrum data written to database", logging.DEBUG)
     except SQLAlchemyError as e:
         success = False
-        log_error(e, "kletterzentrum:dbstore:sqlite", False)
+        log_error(e, "kletterzentrum:dbstore", False)
         cli.fail(
             f"Could not store kletterzentrum data to database!\nError: {e}",
             messages_stay_in_one_line=False,

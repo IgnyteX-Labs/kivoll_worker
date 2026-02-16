@@ -46,7 +46,7 @@ def test_resolve_targets_auto_selection_respects_open_hours(dummy_cli) -> None:
 def test_main_partial_failure_exit_code(monkeypatch) -> None:
     args = Namespace(list_targets=False, time_of_day=None, targets="alpha,beta")
     monkeypatch.setattr(scraper, "parse_scrape_args", lambda: args)
-    monkeypatch.setattr(scraper, "init_db", lambda: None)
+    monkeypatch.setattr(scraper, "init_db", lambda _: None)
     monkeypatch.setattr(scraper, "_reference_time", lambda *args, **kwargs: time(10, 0))
     monkeypatch.setattr(
         failure_mod, "_errors", mock.Mock(json={"errors": []}, save=mock.Mock())
