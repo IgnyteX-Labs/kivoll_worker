@@ -267,7 +267,7 @@ def test_warnings_for_missing_db_host(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["kivoll-schedule"])
 
     with mock.patch("cliasi.cli.warn") as mock_warn:
-        args = arguments.parse_manage_args()
+        _ = arguments.parse_manage_args()
 
         # Check that DB_HOST warning was issued
         warn_calls = [call[0][0] for call in mock_warn.call_args_list]
@@ -284,7 +284,7 @@ def test_warnings_for_missing_scheduler_password(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["kivoll-schedule"])
 
     with mock.patch("cliasi.cli.warn") as mock_warn:
-        args = arguments.parse_manage_args()
+        _ = arguments.parse_manage_args()
 
         # Check that SCHEDULER_DB_PASSWORD warning was issued
         warn_calls = [call[0][0] for call in mock_warn.call_args_list]
@@ -301,7 +301,7 @@ def test_warnings_for_missing_worker_password(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["kivoll-schedule"])
 
     with mock.patch("cliasi.cli.warn") as mock_warn:
-        args = arguments.parse_manage_args()
+        _ = arguments.parse_manage_args()
 
         # Check that WORKER_APP_PASSWORD warning was issued
         warn_calls = [call[0][0] for call in mock_warn.call_args_list]
@@ -318,7 +318,7 @@ def test_warnings_for_missing_migrator_password(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["kivoll-schedule"])
 
     with mock.patch("cliasi.cli.warn") as mock_warn:
-        args = arguments.parse_manage_args()
+        _ = arguments.parse_manage_args()
 
         # Check that WORKER_MIGRATOR_PASSWORD warning was issued
         warn_calls = [call[0][0] for call in mock_warn.call_args_list]
@@ -335,7 +335,7 @@ def test_no_warnings_when_env_vars_set(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["kivoll-schedule"])
 
     with mock.patch("cliasi.cli.warn") as mock_warn:
-        args = arguments.parse_manage_args()
+        _ = arguments.parse_manage_args()
 
         # No warnings should be issued
         assert mock_warn.call_count == 0
@@ -365,7 +365,7 @@ def test_no_warnings_when_cli_args_set(monkeypatch):
     )
 
     with mock.patch("cliasi.cli.warn") as mock_warn:
-        args = arguments.parse_manage_args()
+        _ = arguments.parse_manage_args()
 
         # No warnings should be issued
         assert mock_warn.call_count == 0
@@ -437,4 +437,3 @@ def test_partial_credentials_set(monkeypatch):
 
         # Only 2 warnings should be issued (for missing ones)
         assert mock_warn.call_count == 4  # 2 warnings per missing credential
-

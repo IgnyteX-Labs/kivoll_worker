@@ -200,7 +200,7 @@ def main() -> int:
         return 0
 
     # Initialize database connection and run migrations
-    init_db(args)
+    storage = init_db(args)
 
     # Determine reference time for target selection
     try:
@@ -228,7 +228,7 @@ def main() -> int:
             cli.info(f"Scraping {target}", message_right=f"[{idx}/{total}]")
             db = None
             try:
-                db = connect()
+                db = connect(storage)
                 success = runner(args, db)
                 if success:
                     db.commit()

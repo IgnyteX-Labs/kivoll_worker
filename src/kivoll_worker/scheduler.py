@@ -18,14 +18,13 @@ Entry Points:
 
 Environment Variables:
     - `DB_HOST`: Database URL for job persistence
-    - `SCHEDULER_DB_PASSWORD`: Scheduler user password 
+    - `SCHEDULER_DB_PASSWORD`: Scheduler user password
     - variables required for kivoll-scrape
 
 Example:
     $ kivoll-schedule --verbose
 """
 
-import os
 from datetime import datetime as dt
 from pathlib import Path
 
@@ -108,7 +107,7 @@ def schedule() -> int:
     scheduler.add_jobstore(
         SQLAlchemyJobStore(
             url=f"postgresql+psycopg://"
-                f"scheduler:{args.scheduler_password}@{args.db_host}/scheduler_db"
+            f"scheduler:{args.scheduler_password}@{args.db_host}/scheduler_db"
         )
     )
 

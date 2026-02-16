@@ -77,7 +77,7 @@ def _parse_common_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         type=str,
         default=None,
         help="Worker user password "
-             "(overrides environment variable WORKER_APP_PASSWORD)",
+        "(overrides environment variable WORKER_APP_PASSWORD)",
     )
     parser.add_argument(
         "--migrator-password",
@@ -85,7 +85,7 @@ def _parse_common_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         type=str,
         default=None,
         help="Migrator user password "
-             "(overrides environment variable WORKER_MIGRATOR_PASSWORD)",
+        "(overrides environment variable WORKER_MIGRATOR_PASSWORD)",
     )
     parser.add_argument(
         "--scheduler-password",
@@ -93,11 +93,10 @@ def _parse_common_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         type=str,
         default=None,
         help="Scheduler password "
-             "(overrides environment variable SCHEDULER_DB_PASSWORD)",
+        "(overrides environment variable SCHEDULER_DB_PASSWORD)",
     )
 
     args = parser.parse_args()
-
 
     # Initialize configuration system with the specified config file
     from .config import init_config
@@ -133,9 +132,7 @@ def _parse_common_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
     ):
         scheduler_password = scheduler_password_arg
 
-    if args.worker_password and (
-        worker_password_arg := args.worker_password.strip()
-    ):
+    if args.worker_password and (worker_password_arg := args.worker_password.strip()):
         worker_password = worker_password_arg
 
     if args.migrator_password and (
@@ -165,9 +162,7 @@ def _parse_common_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
 
     for var_name, (value, env_var, default) in credentials.items():
         # Check if value is None, empty, or whitespace-only
-        is_empty = value is None or (
-            isinstance(value, str) and not value.strip()
-        )
+        is_empty = value is None or (isinstance(value, str) and not value.strip())
 
         if is_empty:
             cli.warn(

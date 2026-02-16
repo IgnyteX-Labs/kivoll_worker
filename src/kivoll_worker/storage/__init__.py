@@ -21,17 +21,17 @@ Environment Variables:
     - WORKER_MIGRATOR_PASSWORD: Migrator user password
 
 Example:
-    >>> from kivoll_worker.storage import init_db, connect
-    >>> init_db()  # Apply pending migrations
-    >>> with connect() as conn:
+    >>> from kivoll_worker.storage import init_db
+    >>> storage = init_db(args)  # Apply pending migrations
+    >>> with storage.connect() as conn:
     ...     result = conn.execute(text("SELECT * FROM weather_hourly"))
 """
 
 from __future__ import annotations
 
 import logging
-import os
 from argparse import Namespace
+from dataclasses import dataclass
 from datetime import datetime
 from importlib.resources import files
 from pathlib import Path
@@ -39,13 +39,8 @@ from pathlib import Path
 from cliasi import Cliasi
 from sqlalchemy import Connection, Engine, create_engine, text
 
-from ..common import config
-
 # CLI instance for database-related logging (reinitialized in init_db)
 cli: Cliasi = Cliasi("uninitialized")
-
-# Cached SQLAlchemy engine (lazily initialized)
-_engine: Engine | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -177,7 +172,18 @@ def _apply_migrations(conn: Connection) -> None:
 # ---------------------------------------------------------------------------
 
 
-def init_db(args: Namespace) -> None:
+@dataclass(frozen=True)
+class Storage:
+    """Typed wrapper around a SQLAlchemy engine."""
+
+    engine: Engine
+
+    def connect(self) -> Connection:
+        """Get a new database connection from the engine."""
+        return self.engine.connect()
+
+
+def init_db(args: Namespace) -> Storage:
     """
     Initialize the database connection and apply pending migrations.
 
@@ -188,6 +194,7 @@ def init_db(args: Namespace) -> None:
       3. Applies any pending SQL migrations
 
     :param args: Command-line arguments containing database connection info
+    :returns: Storage wrapper for the worker application engine
     """
     global cli
     cli = Cliasi("DB")
@@ -206,24 +213,16 @@ def init_db(args: Namespace) -> None:
     finally:
         conn.close()
 
-    global _engine
-    _engine = create_engine(
+    app_engine = create_engine(
         f"postgresql+psycopg://"
         f"worker_app:{args.worker_password}@{args.db_host}/worker_db"
     )
+    return Storage(app_engine)
 
 
-def _ensure_engine() -> Engine:
+def connect(storage: Storage | Engine) -> Connection:
     """
-    Get a cached SQLAlchemy engine instance, initializing it if necessary.
-    """
-    global _engine
-    return _engine
-
-
-def connect() -> Connection:
-    """
-    Get a new database connection.
+    Get a new database connection from a Storage wrapper or Engine.
 
     Returns:
         Connection: A new SQLAlchemy connection to the database.
@@ -231,14 +230,17 @@ def connect() -> Connection:
     Note:
         The caller is responsible for closing the connection when done,
         preferably using a context manager:
-        >>> with connect() as conn:
+        >>> with connect(storage) as conn:
         ...     conn.execute(...)
     """
-    return _ensure_engine().connect()
+    if isinstance(storage, Storage):
+        return storage.connect()
+    return storage.connect()
 
 
 # Minimal public API
 __all__ = [
+    "Storage",
     "init_db",
     "connect",
 ]
