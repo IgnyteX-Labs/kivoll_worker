@@ -3,6 +3,7 @@ from unittest import mock
 
 import pytest
 
+from kivoll_worker import __version__
 from kivoll_worker.common import arguments
 
 
@@ -115,6 +116,44 @@ def test_parse_predict_args_with_options(monkeypatch):
     assert args.config_path == "data/config.json"
     assert args.model == "model.pkl"
     assert args.input == "data.csv"
+
+
+# ---------------------------------------------------------------------------
+# Version Argument Tests
+# ---------------------------------------------------------------------------
+
+
+def test_parse_manage_args_version(monkeypatch, capsys):
+    """Test that --version displays version and exits for kivoll-schedule."""
+    monkeypatch.setattr(sys, "argv", ["kivoll-schedule", "--version"])
+    with pytest.raises(SystemExit) as exc_info:
+        arguments.parse_manage_args()
+    assert exc_info.value.code == 0
+    captured = capsys.readouterr()
+    assert "kivoll-schedule" in captured.out
+    assert __version__ in captured.out
+
+
+def test_parse_scrape_args_version(monkeypatch, capsys):
+    """Test that --version displays version and exits for kivoll-scrape."""
+    monkeypatch.setattr(sys, "argv", ["kivoll-scrape", "--version"])
+    with pytest.raises(SystemExit) as exc_info:
+        arguments.parse_scrape_args()
+    assert exc_info.value.code == 0
+    captured = capsys.readouterr()
+    assert "kivoll-scrape" in captured.out
+    assert __version__ in captured.out
+
+
+def test_parse_predict_args_version(monkeypatch, capsys):
+    """Test that --version displays version and exits for kivoll-predict."""
+    monkeypatch.setattr(sys, "argv", ["kivoll-predict", "--version"])
+    with pytest.raises(SystemExit) as exc_info:
+        arguments.parse_predict_args()
+    assert exc_info.value.code == 0
+    captured = capsys.readouterr()
+    assert "kivoll-predict" in captured.out
+    assert __version__ in captured.out
 
 
 # ---------------------------------------------------------------------------

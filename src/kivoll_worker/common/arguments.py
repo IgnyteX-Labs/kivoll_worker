@@ -22,6 +22,8 @@ import os
 
 from cliasi import cli
 
+from kivoll_worker import __version__
+
 # ---------------------------------------------------------------------------
 # Common Argument Handling
 # ---------------------------------------------------------------------------
@@ -36,6 +38,11 @@ def _parse_common_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
     :returns: Parsed arguments namespace.
     :rtype: argparse.Namespace
     """
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+    )
     parser.add_argument(
         "--verbose",
         dest="verbose",
@@ -56,12 +63,6 @@ def _parse_common_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         action="store",
         default="data/config.json",
         help="Path to main config file (default: data/config.json)",
-    )
-    parser.add_argument(
-        "--version",
-        action="store_true",
-        default=False,
-        help="Show program's version number and exit.",
     )
     parser.add_argument(
         "--db-host",
@@ -96,6 +97,7 @@ def _parse_common_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
     )
 
     args = parser.parse_args()
+
 
     # Initialize configuration system with the specified config file
     from .config import init_config
