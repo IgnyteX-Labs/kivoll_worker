@@ -18,6 +18,7 @@ Example::
 
 import argparse
 import logging
+import os
 
 from cliasi import cli
 
@@ -56,6 +57,43 @@ def _parse_common_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         default="data/config.json",
         help="Path to main config file (default: data/config.json)",
     )
+    parser.add_argument(
+        "--version",
+        action="store_true",
+        default=False,
+        help="Show program's version number and exit.",
+    )
+    parser.add_argument(
+        "--db-host",
+        dest="db_host",
+        type=str,
+        default=None,
+        help="Database host URL (overrides environment variable DB_HOST)",
+    )
+    parser.add_argument(
+        "--worker-password",
+        dest="worker_password",
+        type=str,
+        default=None,
+        help="Worker user password "
+             "(overrides environment variable WORKER_APP_PASSWORD)",
+    )
+    parser.add_argument(
+        "--migrator-password",
+        dest="migrator_password",
+        type=str,
+        default=None,
+        help="Migrator user password "
+             "(overrides environment variable WORKER_MIGRATOR_PASSWORD)",
+    )
+    parser.add_argument(
+        "--scheduler-password",
+        dest="scheduler_password",
+        type=str,
+        default=None,
+        help="Scheduler password "
+             "(overrides environment variable SCHEDULER_DB_PASSWORD)",
+    )
 
     args = parser.parse_args()
 
@@ -78,6 +116,71 @@ def _parse_common_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         if args.verbose
         else logging.INFO
     )
+
+    # Get variables from the environment
+    db_host = os.environ.get("DB_HOST")
+    scheduler_password = os.environ.get("SCHEDULER_DB_PASSWORD")
+    worker_password = os.environ.get("WORKER_APP_PASSWORD")
+    migrator_password = os.environ.get("WORKER_MIGRATOR_PASSWORD")
+
+    if args.db_host and (db_host_arg := args.db_host.strip()):
+        db_host = db_host_arg
+
+    if args.scheduler_password and (
+        scheduler_password_arg := args.scheduler_password.strip()
+    ):
+        scheduler_password = scheduler_password_arg
+
+    if args.worker_password and (
+        worker_password_arg := args.worker_password.strip()
+    ):
+        worker_password = worker_password_arg
+
+    if args.migrator_password and (
+        migrator_password_arg := args.migrator_password.strip()
+    ):
+        migrator_password = migrator_password_arg
+
+    # Validate and set defaults for required credentials
+    credentials = {
+        "db_host": (db_host, "DB_HOST", "localhost:5432"),
+        "scheduler_password": (
+            scheduler_password,
+            "SCHEDULER_DB_PASSWORD",
+            "schedulerpass",
+        ),
+        "worker_password": (
+            worker_password,
+            "WORKER_APP_PASSWORD",
+            "workerpass",
+        ),
+        "migrator_password": (
+            migrator_password,
+            "WORKER_MIGRATOR_PASSWORD",
+            "workermigratorpass",
+        ),
+    }
+
+    for var_name, (value, env_var, default) in credentials.items():
+        # Check if value is None, empty, or whitespace-only
+        is_empty = value is None or (
+            isinstance(value, str) and not value.strip()
+        )
+
+        if is_empty:
+            cli.warn(
+                f"{env_var} is not set. \n"
+                f"Will use default value '{default}', which may not work if"
+                f" the database is configured with a different password or host."
+            )
+            cli.warn(
+                f"Change environment variables "
+                f"or use the --{env_var.replace('_', '-').lower()} argument."
+            )
+            args.__setattr__(var_name, default)
+        else:
+            # Use the actual value (already stripped if it came from CLI args)
+            args.__setattr__(var_name, value)
 
     return args
 
