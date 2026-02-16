@@ -1,7 +1,6 @@
 """Fetch and parse occupancy (Auslastung) data from the Kletterzentrum website.
 
-This module contains the parsing logic and a small CLI entrypoint. Prefer
-importing `get_auslastung` for programmatic usage.
+Prefer importing the ` kletterzentrum ` function for programmatic usage.
 """
 
 import logging

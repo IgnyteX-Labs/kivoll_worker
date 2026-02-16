@@ -10,7 +10,7 @@ a heartbeat file for Docker healthchecks, and persistent job storage.
 Features:
     - Periodic weather data collection (outside climbing hours)
     - Kletterzentrum occupancy scraping (during opening hours)
-    - Heartbeat file updates for Docker healthchecks
+    - Heartbeat file updates for Docker health checks
     - Persistent job storage in PostgreSQL
 
 Entry Points:
@@ -19,7 +19,8 @@ Entry Points:
 Environment Variables:
     - `DB_HOST`: Database URL for job persistence
     - `SCHEDULER_DB_PASSWORD`: Scheduler user password 
-    
+    - variables required for kivoll-scrape
+
 Example:
     $ kivoll-schedule --verbose
 """
