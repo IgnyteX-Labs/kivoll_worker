@@ -348,13 +348,13 @@ def test_warn_on_nonlist_parameters(monkeypatch) -> None:
     class _ShortCircuitEx(Exception):
         pass
 
-    def end_on_anim_msg_nonblocking(*a, **k):
+    def end_on_anim_msg_non_blocking(*a, **k):
         raise _ShortCircuitEx()
 
     monkeypatch.setattr(
         weather.cli,
         "animate_message_download_non_blocking",
-        end_on_anim_msg_nonblocking,
+        end_on_anim_msg_non_blocking,
         raising=False,
     )
     from cliasi import Cliasi as cli_mod
@@ -362,7 +362,7 @@ def test_warn_on_nonlist_parameters(monkeypatch) -> None:
     monkeypatch.setattr(
         cli_mod,
         "animate_message_download_non_blocking",
-        end_on_anim_msg_nonblocking,
+        end_on_anim_msg_non_blocking,
         raising=False,
     )
 
@@ -745,3 +745,49 @@ def test_weather_request_error_returns_false(monkeypatch) -> None:
 
     result = weather.weather(None)
     assert result is False
+
+
+@pytest.mark.database
+def test_weather_returns_false_on_sqlalchemy_error(monkeypatch, dummy_cli) -> None:
+    cfg = {
+        "modules": {
+            "weather": {
+                "url": "http://example",
+                "parameters": {"current": ["temperature_2m"]},
+                "locations": {
+                    "loc": {"enabled": True, "latitude": 48.0, "longitude": 11.0}
+                },
+            }
+        }
+    }
+
+    weather._columns_cache.clear()
+    weather._columns_cache["current"] = frozenset({"temperature_2m"})
+    weather._table_cache.clear()
+
+    monkeypatch.setattr(weather, "config", lambda: cfg)
+    monkeypatch.setattr(weather, "Cliasi", lambda name: dummy_cli)
+
+    current = _FakeCurrent([3.3], observed_at=999)
+    resp = _FakeResponse(48.0, 11.0, current=current, hourly=None, daily=None)
+
+    monkeypatch.setattr(
+        openmeteo_requests.Client, "weather_api", lambda self, url, params: [resp]
+    )
+
+    captured: list[tuple[Exception, str, bool]] = []
+
+    def _capture_log_error(ex, context, fatal):
+        captured.append((ex, context, fatal))
+
+    monkeypatch.setattr(weather, "log_error", _capture_log_error)
+
+    def _raise_insert(*_args, **_kwargs):
+        raise SQLAlchemyError("insert failed")
+
+    monkeypatch.setattr(weather, "insert_weather_data", _raise_insert)
+
+    result = weather.weather(object())
+
+    assert result is False
+    assert any(context == "weather:dbstore:database" for _, context, _ in captured)
