@@ -243,5 +243,6 @@ def mock_scraper_get_tz():
 def mock_scraper_init_db():
     from unittest.mock import patch
 
-    with patch("kivoll_worker.scraper.init_db", lambda: None):
+    dummy_storage = object()
+    with patch("kivoll_worker.scraper.init_db", lambda args: dummy_storage):
         yield

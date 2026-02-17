@@ -2,9 +2,7 @@ import os
 import sys
 import sqlite3
 
-from docutils import nodes
-from docutils.parsers.rst import Directive, Parser
-from docutils.utils import new_document
+from docutils.parsers.rst import Directive
 from docutils.core import publish_doctree
 
 sys.path.insert(0, os.path.abspath(os.path.join("..", "..", "src")))

@@ -13,7 +13,6 @@ from openmeteo_requests import OpenMeteoRequestsError
 from openmeteo_sdk.WeatherApiResponse import WeatherApiResponse
 from sqlalchemy import Connection, MetaData, Table, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import SQLAlchemyError
 
 from ..common.config import config
@@ -346,7 +345,7 @@ def weather(connection: Connection) -> bool:
             success = False
     except SQLAlchemyError as e:
         success = False
-        log_error(e, "weather:dbstore:sqlite", False)
+        log_error(e, "weather:dbstore:database", False)
         cli.fail(
             f"Could not store weather data to database!\nError: {e}",
             messages_stay_in_one_line=False,
@@ -506,11 +505,7 @@ def insert_weather_data(
 
     dialect_name = conn.dialect.name
     insert_stmt: sqlalchemy.sql.dml.Insert
-    if dialect_name == "sqlite":
-        insert_stmt = sqlite_insert(table)
-    elif dialect_name in {"postgresql", "postgres"}:
-        insert_stmt = pg_insert(table)
-    else:
+    if dialect_name not in {"postgresql", "postgres"}:
         message = "Unsupported database dialect for upsert: " + dialect_name
         e = UnsupportedDialect(message)
         log_error(e, "weather:dbstore:unsupported_dialect", False)
@@ -518,6 +513,7 @@ def insert_weather_data(
         # Raise instead of returning False so calling code and tests can detect
         # this configuration/programming error immediately.
         raise e
+    insert_stmt = pg_insert(table)
 
     # Build insert statement with conflict handling based on resolution
     # For hourly/daily: new composite key includes fetched_at, so conflicts are rare
@@ -578,7 +574,6 @@ def insert_weather_data(
 
         row.update(
             {
-                # Cast to float for SQLite compatibility while preserving NULLs
                 name: float(val) if val is not None else None
                 for name, val in zip(valid_names, raw_values, strict=False)
             }
