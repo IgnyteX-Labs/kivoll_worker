@@ -2,8 +2,6 @@
 requires = ["flit_scm"]
 build-backend = "flit_scm:buildapi"
 
-
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
@@ -24,7 +22,7 @@ source = ["src/kivoll_worker"]
 branch = true
 omit = [
     "*/__pycache__/*",
-    "*/__about__.py",
+    "*/_version.py",
 ]
 
 
@@ -76,10 +74,8 @@ Documentation = "https://ignytex-labs.github.io/kivoll_worker/"
 kivoll-schedule = "kivoll_worker.scheduler:main"
 kivoll-scrape = "kivoll_worker.scraper:main"
 
-
-
 [tool.flit_scm]
-write_to = "src/kivoll_worker/__about__.py"
+write_to = "src/kivoll_worker/_version.py"
 
 [tool.flit.sdist]
 include = [
@@ -110,7 +106,7 @@ dev = [
 [tool.ruff]
 target-version = "py310"
 src = ["src", "tests"]
-exclude = ["**/__about__.py", "docs"]
+exclude = ["**/_version.py", "docs"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = [

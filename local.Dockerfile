@@ -11,7 +11,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 
 
-COPY src/kivoll_worker/__about__.py src/kivoll_worker/
+COPY src/kivoll_worker/_version.py src/kivoll_worker/
 COPY healthcheck.sh .
 
 RUN uv sync --no-dev --frozen
