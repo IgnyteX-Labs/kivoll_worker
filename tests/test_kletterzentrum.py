@@ -122,6 +122,42 @@ def test_kletterzentrum_http_error(
     assert len(dummy_cli.failed) > 0 and "Could not fetch data" in dummy_cli.failed[0]
 
 
+def test_kletterzentrum_empty_html_response(
+    mock_kletterzentrum_cliasi,
+    dummy_cli,
+    mock_kletterzentrum_config,
+    mock_kletterzentrum_get_tz,
+    mock_kletterzentrum_log_error,
+    monkeypatch,
+    tmp_path,
+):
+    """Test handling of empty HTML response from server."""
+    args = Namespace(dry_run=False)
+    monkeypatch.setattr(kletterzentrum, "config", mock_kletterzentrum_config)
+    monkeypatch.setattr(kletterzentrum, "__short_version__", "1.0")
+
+    # Mock session with empty response
+    mock_response = Mock()
+    mock_response.text = ""
+    mock_response.raise_for_status = Mock()
+
+    mock_session = Mock()
+    mock_session.get.return_value = mock_response
+
+    mock_conn = Mock()
+
+    with patch(
+        "kivoll_worker.scrape.kletterzentrum.create_scrape_session",
+        return_value=mock_session,
+    ):
+        result = kletterzentrum.kletterzentrum(args, mock_conn)
+
+    assert result is True
+    # Verify warning was issued about empty HTML
+    assert len(dummy_cli.warned) > 0
+    assert any("Received empty HTML" in msg for msg in dummy_cli.warned)
+
+
 def test_kletterzentrum_config_error_url(
     mock_kletterzentrum_cliasi, dummy_cli, mock_kletterzentrum_log_error, monkeypatch
 ):
