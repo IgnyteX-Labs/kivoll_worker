@@ -17,7 +17,28 @@ def mock_inits():
         yield
 
 
-def test_parse_manage_args_defaults(monkeypatch):
+@pytest.fixture(autouse=True)
+def clear_credential_env(monkeypatch):
+    """Ensure credential env vars do not leak into tests by default."""
+    for name in (
+        "DB_HOST",
+        "SCHEDULER_DB_PASSWORD",
+        "WORKER_APP_PASSWORD",
+        "WORKER_MIGRATOR_PASSWORD",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+
+@pytest.fixture()
+def set_valid_credentials(monkeypatch):
+    """Set non-default credentials so parse_*_args can succeed."""
+    monkeypatch.setenv("DB_HOST", "db.testing:5432")
+    monkeypatch.setenv("SCHEDULER_DB_PASSWORD", "sched_pass")
+    monkeypatch.setenv("WORKER_APP_PASSWORD", "worker_pass")
+    monkeypatch.setenv("WORKER_MIGRATOR_PASSWORD", "migrator_pass")
+
+
+def test_parse_manage_args_defaults(monkeypatch, set_valid_credentials):
     """Test parse_manage_args with default arguments."""
     monkeypatch.setattr(sys, "argv", ["kivoll-schedule"])
     args = arguments.parse_schedule_args()
@@ -26,7 +47,7 @@ def test_parse_manage_args_defaults(monkeypatch):
     assert args.config_path == "data/config.json"
 
 
-def test_parse_manage_args_with_options(monkeypatch):
+def test_parse_manage_args_with_options(monkeypatch, set_valid_credentials):
     """Test parse_manage_args with verbose and config path."""
     monkeypatch.setattr(
         sys, "argv", ["kivoll-schedule", "--verbose", "--config-path", "custom.json"]
@@ -37,7 +58,7 @@ def test_parse_manage_args_with_options(monkeypatch):
     assert args.config_path == "custom.json"
 
 
-def test_parse_manage_args_warn_only(monkeypatch):
+def test_parse_manage_args_warn_only(monkeypatch, set_valid_credentials):
     """Test parse_manage_args with warn-only."""
     monkeypatch.setattr(sys, "argv", ["kivoll-schedule", "--warn-only"])
     args = arguments.parse_schedule_args()
@@ -46,7 +67,7 @@ def test_parse_manage_args_warn_only(monkeypatch):
     assert args.config_path == "data/config.json"
 
 
-def test_parse_scrape_args_defaults(monkeypatch):
+def test_parse_scrape_args_defaults(monkeypatch, set_valid_credentials):
     """Test parse_scrape_args with default arguments."""
     monkeypatch.setattr(sys, "argv", ["kivoll-scrape"])
     args = arguments.parse_scrape_args()
@@ -59,7 +80,7 @@ def test_parse_scrape_args_defaults(monkeypatch):
     assert args.list_targets is False
 
 
-def test_parse_scrape_args_with_scrape_options(monkeypatch):
+def test_parse_scrape_args_with_scrape_options(monkeypatch, set_valid_credentials):
     """Test parse_scrape_args with scrape-specific options."""
     monkeypatch.setattr(
         sys,
@@ -90,7 +111,7 @@ def test_parse_scrape_args_with_scrape_options(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_parse_manage_args_version(monkeypatch, capsys):
+def test_parse_manage_args_version(monkeypatch, capsys, set_valid_credentials):
     """Test that --version displays version and exits for kivoll-schedule."""
     monkeypatch.setattr(sys, "argv", ["kivoll-schedule", "--version"])
     with pytest.raises(SystemExit) as exc_info:
@@ -101,7 +122,7 @@ def test_parse_manage_args_version(monkeypatch, capsys):
     assert __version__ in captured.out
 
 
-def test_parse_scrape_args_version(monkeypatch, capsys):
+def test_parse_scrape_args_version(monkeypatch, capsys, set_valid_credentials):
     """Test that --version displays version and exits for kivoll-scrape."""
     monkeypatch.setattr(sys, "argv", ["kivoll-scrape", "--version"])
     with pytest.raises(SystemExit) as exc_info:
@@ -132,6 +153,21 @@ def test_env_vars_loaded_into_args(monkeypatch):
     assert args.scheduler_password == "sched_pass"
     assert args.worker_password == "worker_pass"
     assert args.migrator_password == "migrator_pass"
+
+
+def test_db_host_missing_uses_default(monkeypatch):
+    """Test that missing DB_HOST uses default without exiting."""
+    monkeypatch.setenv("SCHEDULER_DB_PASSWORD", "sched_pass")
+    monkeypatch.setenv("WORKER_APP_PASSWORD", "worker_pass")
+    monkeypatch.setenv("WORKER_MIGRATOR_PASSWORD", "migrator_pass")
+
+    monkeypatch.setattr(sys, "argv", ["kivoll-schedule"])
+
+    with mock.patch("cliasi.cli.warn") as mock_warn:
+        args = arguments.parse_schedule_args()
+
+    assert args.db_host == "localhost:5432"
+    assert mock_warn.call_count == 1
 
 
 def test_cli_args_override_env_vars(monkeypatch):
@@ -168,11 +204,6 @@ def test_cli_args_override_env_vars(monkeypatch):
 
 def test_whitespace_trimming_in_cli_args(monkeypatch):
     """Test that whitespace is trimmed from CLI arguments."""
-    monkeypatch.delenv("DB_HOST", raising=False)
-    monkeypatch.delenv("SCHEDULER_DB_PASSWORD", raising=False)
-    monkeypatch.delenv("WORKER_APP_PASSWORD", raising=False)
-    monkeypatch.delenv("WORKER_MIGRATOR_PASSWORD", raising=False)
-
     monkeypatch.setattr(
         sys,
         "argv",
@@ -182,6 +213,10 @@ def test_whitespace_trimming_in_cli_args(monkeypatch):
             "  host_with_spaces  ",
             "--worker-password",
             "  pass_with_spaces  ",
+            "--scheduler-password",
+            "sched_pass",
+            "--migrator-password",
+            "migrator_pass",
         ],
     )
     args = arguments.parse_schedule_args()
@@ -191,119 +226,91 @@ def test_whitespace_trimming_in_cli_args(monkeypatch):
 
 
 def test_default_values_when_nothing_set(monkeypatch):
-    """Test that default values are used when no env vars or CLI args are provided."""
-    # Clear environment variables
-    monkeypatch.delenv("DB_HOST", raising=False)
-    monkeypatch.delenv("SCHEDULER_DB_PASSWORD", raising=False)
-    monkeypatch.delenv("WORKER_APP_PASSWORD", raising=False)
-    monkeypatch.delenv("WORKER_MIGRATOR_PASSWORD", raising=False)
-
+    """Test that default values trigger exit when no env vars or CLI args."""
     monkeypatch.setattr(sys, "argv", ["kivoll-schedule"])
 
-    with mock.patch("cliasi.cli.warn") as mock_warn:
-        args = arguments.parse_schedule_args()
+    with mock.patch("cliasi.cli.fail") as mock_fail:
+        with pytest.raises(SystemExit) as exc_info:
+            arguments.parse_schedule_args()
 
-        # Check that defaults are set
-        assert args.db_host == "localhost:5432"
-        assert args.scheduler_password == "schedulerpass"
-        assert args.worker_password == "workerpass"
-        assert args.migrator_password == "workermigratorpass"
-
-        # Check that 4 warnings were issued (one for each missing credential)
-        assert mock_warn.call_count == 8  # 2 warnings per credential
+    assert exc_info.value.code == 1
+    fail_calls = [call[0][0] for call in mock_fail.call_args_list]
+    assert any("SCHEDULER_DB_PASSWORD" in call for call in fail_calls)
 
 
-def test_warnings_for_missing_db_host(monkeypatch):
-    """Test that warning is issued when DB_HOST is not set."""
-    monkeypatch.delenv("DB_HOST", raising=False)
-    monkeypatch.delenv("SCHEDULER_DB_PASSWORD", raising=False)
-    monkeypatch.delenv("WORKER_APP_PASSWORD", raising=False)
-    monkeypatch.delenv("WORKER_MIGRATOR_PASSWORD", raising=False)
-
-    monkeypatch.setattr(sys, "argv", ["kivoll-schedule"])
-
-    with mock.patch("cliasi.cli.warn") as mock_warn:
-        _ = arguments.parse_schedule_args()
-
-        # Check that DB_HOST warning was issued
-        warn_calls = [call[0][0] for call in mock_warn.call_args_list]
-        assert any("DB_HOST" in call for call in warn_calls)
-
-
-def test_warnings_for_missing_scheduler_password(monkeypatch):
-    """Test that warning is issued when SCHEDULER_DB_PASSWORD is not set."""
-    monkeypatch.delenv("DB_HOST", raising=False)
-    monkeypatch.delenv("SCHEDULER_DB_PASSWORD", raising=False)
-    monkeypatch.delenv("WORKER_APP_PASSWORD", raising=False)
-    monkeypatch.delenv("WORKER_MIGRATOR_PASSWORD", raising=False)
-
-    monkeypatch.setattr(sys, "argv", ["kivoll-schedule"])
-
-    with mock.patch("cliasi.cli.warn") as mock_warn:
-        _ = arguments.parse_schedule_args()
-
-        # Check that SCHEDULER_DB_PASSWORD warning was issued
-        warn_calls = [call[0][0] for call in mock_warn.call_args_list]
-        assert any("SCHEDULER_DB_PASSWORD" in call for call in warn_calls)
-
-
-def test_warnings_for_missing_worker_password(monkeypatch):
-    """Test that warning is issued when WORKER_APP_PASSWORD is not set."""
-    monkeypatch.delenv("DB_HOST", raising=False)
-    monkeypatch.delenv("SCHEDULER_DB_PASSWORD", raising=False)
-    monkeypatch.delenv("WORKER_APP_PASSWORD", raising=False)
-    monkeypatch.delenv("WORKER_MIGRATOR_PASSWORD", raising=False)
-
-    monkeypatch.setattr(sys, "argv", ["kivoll-schedule"])
-
-    with mock.patch("cliasi.cli.warn") as mock_warn:
-        _ = arguments.parse_schedule_args()
-
-        # Check that WORKER_APP_PASSWORD warning was issued
-        warn_calls = [call[0][0] for call in mock_warn.call_args_list]
-        assert any("WORKER_APP_PASSWORD" in call for call in warn_calls)
-
-
-def test_warnings_for_missing_migrator_password(monkeypatch):
-    """Test that warning is issued when WORKER_MIGRATOR_PASSWORD is not set."""
-    monkeypatch.delenv("DB_HOST", raising=False)
-    monkeypatch.delenv("SCHEDULER_DB_PASSWORD", raising=False)
-    monkeypatch.delenv("WORKER_APP_PASSWORD", raising=False)
-    monkeypatch.delenv("WORKER_MIGRATOR_PASSWORD", raising=False)
-
-    monkeypatch.setattr(sys, "argv", ["kivoll-schedule"])
-
-    with mock.patch("cliasi.cli.warn") as mock_warn:
-        _ = arguments.parse_schedule_args()
-
-        # Check that WORKER_MIGRATOR_PASSWORD warning was issued
-        warn_calls = [call[0][0] for call in mock_warn.call_args_list]
-        assert any("WORKER_MIGRATOR_PASSWORD" in call for call in warn_calls)
-
-
-def test_no_warnings_when_env_vars_set(monkeypatch):
-    """Test that no warnings are issued when all credentials are set."""
+def test_exit_when_default_value_is_provided(monkeypatch):
+    """Test that providing a default credential value exits the program."""
     monkeypatch.setenv("DB_HOST", "localhost:5432")
-    monkeypatch.setenv("SCHEDULER_DB_PASSWORD", "sched_pass")
+    monkeypatch.setenv("SCHEDULER_DB_PASSWORD", "schedulerpass")
     monkeypatch.setenv("WORKER_APP_PASSWORD", "worker_pass")
     monkeypatch.setenv("WORKER_MIGRATOR_PASSWORD", "migrator_pass")
 
     monkeypatch.setattr(sys, "argv", ["kivoll-schedule"])
 
-    with mock.patch("cliasi.cli.warn") as mock_warn:
-        _ = arguments.parse_schedule_args()
+    with mock.patch("cliasi.cli.fail") as mock_fail:
+        with pytest.raises(SystemExit) as exc_info:
+            arguments.parse_schedule_args()
 
-        # No warnings should be issued
-        assert mock_warn.call_count == 0
+    assert exc_info.value.code == 1
+    fail_calls = [call[0][0] for call in mock_fail.call_args_list]
+    assert any("SCHEDULER_DB_PASSWORD" in call for call in fail_calls)
+    assert any("--allow-insecure-defaults" in call for call in fail_calls)
+
+
+def test_default_value_with_allow_insecure_defaults(monkeypatch):
+    """Test that default credential values are allowed with the flag."""
+    monkeypatch.setenv("DB_HOST", "localhost:5432")
+    monkeypatch.setenv("SCHEDULER_DB_PASSWORD", "schedulerpass")
+    monkeypatch.setenv("WORKER_APP_PASSWORD", "worker_pass")
+    monkeypatch.setenv("WORKER_MIGRATOR_PASSWORD", "migrator_pass")
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["kivoll-schedule", "--allow-insecure-defaults"],
+    )
+
+    with mock.patch("cliasi.cli.warn") as mock_warn:
+        args = arguments.parse_schedule_args()
+
+    assert args.scheduler_password == "schedulerpass"
+    assert mock_warn.call_count == 1
+
+
+def test_default_values_when_allow_insecure_defaults(monkeypatch):
+    """Test that defaults are applied when allow-insecure-defaults is set."""
+    monkeypatch.setattr(sys, "argv", ["kivoll-schedule", "--allow-insecure-defaults"])
+
+    with mock.patch("cliasi.cli.warn") as mock_warn:
+        args = arguments.parse_schedule_args()
+
+    assert args.db_host == "localhost:5432"
+    assert args.scheduler_password == "schedulerpass"
+    assert args.worker_password == "workerpass"
+    assert args.migrator_password == "workermigratorpass"
+    assert mock_warn.call_count == 4
+
+
+def test_partial_credentials_set(monkeypatch):
+    """Test behavior when only some credentials are set."""
+    monkeypatch.setenv("DB_HOST", "db.partial:5432")
+    monkeypatch.delenv("SCHEDULER_DB_PASSWORD", raising=False)
+    monkeypatch.setenv("WORKER_APP_PASSWORD", "worker_pass")
+    monkeypatch.delenv("WORKER_MIGRATOR_PASSWORD", raising=False)
+
+    monkeypatch.setattr(sys, "argv", ["kivoll-schedule"])
+
+    with mock.patch("cliasi.cli.fail") as mock_fail:
+        with pytest.raises(SystemExit) as exc_info:
+            arguments.parse_schedule_args()
+
+    assert exc_info.value.code == 1
+    fail_calls = [call[0][0] for call in mock_fail.call_args_list]
+    assert any("SCHEDULER_DB_PASSWORD" in call for call in fail_calls)
 
 
 def test_no_warnings_when_cli_args_set(monkeypatch):
     """Test that no warnings are issued when CLI arguments are provided."""
-    monkeypatch.delenv("DB_HOST", raising=False)
-    monkeypatch.delenv("SCHEDULER_DB_PASSWORD", raising=False)
-    monkeypatch.delenv("WORKER_APP_PASSWORD", raising=False)
-    monkeypatch.delenv("WORKER_MIGRATOR_PASSWORD", raising=False)
-
     monkeypatch.setattr(
         sys,
         "argv",
@@ -336,17 +343,13 @@ def test_empty_string_treated_as_missing(monkeypatch):
 
     monkeypatch.setattr(sys, "argv", ["kivoll-schedule"])
 
-    with mock.patch("cliasi.cli.warn") as mock_warn:
-        args = arguments.parse_schedule_args()
+    with mock.patch("cliasi.cli.fail") as mock_fail:
+        with pytest.raises(SystemExit) as exc_info:
+            arguments.parse_schedule_args()
 
-        # Check that defaults are set for empty strings
-        assert args.db_host == "localhost:5432"
-        assert args.scheduler_password == "schedulerpass"
-        assert args.worker_password == "workerpass"
-        assert args.migrator_password == "workermigratorpass"
-
-        # Warnings should be issued for all
-        assert mock_warn.call_count == 8  # 2 warnings per credential
+    assert exc_info.value.code == 1
+    fail_calls = [call[0][0] for call in mock_fail.call_args_list]
+    assert any("SCHEDULER_DB_PASSWORD" in call for call in fail_calls)
 
 
 def test_whitespace_only_treated_as_missing(monkeypatch):
@@ -358,38 +361,10 @@ def test_whitespace_only_treated_as_missing(monkeypatch):
 
     monkeypatch.setattr(sys, "argv", ["kivoll-schedule"])
 
-    with mock.patch("cliasi.cli.warn") as mock_warn:
-        args = arguments.parse_schedule_args()
+    with mock.patch("cliasi.cli.fail") as mock_fail:
+        with pytest.raises(SystemExit) as exc_info:
+            arguments.parse_schedule_args()
 
-        # Check that defaults are set for whitespace-only strings
-        assert args.db_host == "localhost:5432"
-        assert args.scheduler_password == "schedulerpass"
-        assert args.worker_password == "workerpass"
-        assert args.migrator_password == "workermigratorpass"
-
-        # Warnings should be issued for all
-        assert mock_warn.call_count == 8  # 2 warnings per credential
-
-
-def test_partial_credentials_set(monkeypatch):
-    """Test behavior when only some credentials are set."""
-    monkeypatch.setenv("DB_HOST", "localhost:5432")
-    monkeypatch.delenv("SCHEDULER_DB_PASSWORD", raising=False)
-    monkeypatch.setenv("WORKER_APP_PASSWORD", "worker_pass")
-    monkeypatch.delenv("WORKER_MIGRATOR_PASSWORD", raising=False)
-
-    monkeypatch.setattr(sys, "argv", ["kivoll-schedule"])
-
-    with mock.patch("cliasi.cli.warn") as mock_warn:
-        args = arguments.parse_schedule_args()
-
-        # Set credentials should be used
-        assert args.db_host == "localhost:5432"
-        assert args.worker_password == "worker_pass"
-
-        # Missing credentials should use defaults
-        assert args.scheduler_password == "schedulerpass"
-        assert args.migrator_password == "workermigratorpass"
-
-        # Only 2 warnings should be issued (for missing ones)
-        assert mock_warn.call_count == 4  # 2 warnings per missing credential
+    assert exc_info.value.code == 1
+    fail_calls = [call[0][0] for call in mock_fail.call_args_list]
+    assert any("SCHEDULER_DB_PASSWORD" in call for call in fail_calls)

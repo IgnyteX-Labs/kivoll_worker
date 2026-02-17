@@ -94,6 +94,13 @@ def _parse_common_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         help="Scheduler password "
         "(overrides environment variable SCHEDULER_DB_PASSWORD)",
     )
+    parser.add_argument(
+        "--allow-insecure-defaults",
+        dest="allow_insecure_defaults",
+        action="store_true",
+        default=False,
+        help="Allow insecure defaults for required credentials.",
+    )
 
     args = parser.parse_args()
 
@@ -164,16 +171,38 @@ def _parse_common_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         is_empty = value is None or (isinstance(value, str) and not value.strip())
 
         if is_empty:
-            cli.warn(
-                f"{env_var} is not set. \n"
-                f"Will use default value '{default}', which may not work if"
-                f" the database is configured with a different password or host."
+            if env_var == "DB_HOST":
+                cli.warn(f"{env_var} is not set. Using default value '{default}'.")
+                args.__setattr__(var_name, default)
+                continue
+            if args.allow_insecure_defaults:
+                cli.warn(f"{env_var} is not set. Using default value '{default}'.")
+                args.__setattr__(var_name, default)
+                continue
+            cli.fail(
+                f"{env_var} is not set. Will use default value '{default}',"
+                " which is unsafe and will not run."
             )
-            cli.warn(
-                f"Change environment variables "
-                f"or use the --{env_var.replace('_', '-').lower()} argument."
+            cli.fail(
+                "Please set a secure password in .env or pass "
+                "--allow-insecure-defaults to continue."
             )
             args.__setattr__(var_name, default)
+            raise SystemExit(1)
+        elif value == default and env_var != "DB_HOST":
+            if args.allow_insecure_defaults:
+                cli.warn(f"{env_var} is set to the default value '{default}'.")
+                args.__setattr__(var_name, default)
+                continue
+            cli.fail(
+                f"{env_var} is set to the default value '{default}'."
+                " This is unsafe - the program will not run."
+            )
+            cli.fail(
+                "Please set a secure password in .env or pass "
+                "--allow-insecure-defaults to continue."
+            )
+            raise SystemExit(1)
         else:
             # Use the actual value (already stripped if it came from CLI args)
             args.__setattr__(var_name, value)
