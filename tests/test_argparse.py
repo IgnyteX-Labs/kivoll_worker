@@ -20,7 +20,7 @@ def mock_inits():
 def test_parse_manage_args_defaults(monkeypatch):
     """Test parse_manage_args with default arguments."""
     monkeypatch.setattr(sys, "argv", ["kivoll-schedule"])
-    args = arguments.parse_manage_args()
+    args = arguments.parse_schedule_args()
     assert args.verbose is False
     assert args.warn_only is False
     assert args.config_path == "data/config.json"
@@ -31,7 +31,7 @@ def test_parse_manage_args_with_options(monkeypatch):
     monkeypatch.setattr(
         sys, "argv", ["kivoll-schedule", "--verbose", "--config-path", "custom.json"]
     )
-    args = arguments.parse_manage_args()
+    args = arguments.parse_schedule_args()
     assert args.verbose is True
     assert args.warn_only is False
     assert args.config_path == "custom.json"
@@ -40,7 +40,7 @@ def test_parse_manage_args_with_options(monkeypatch):
 def test_parse_manage_args_warn_only(monkeypatch):
     """Test parse_manage_args with warn-only."""
     monkeypatch.setattr(sys, "argv", ["kivoll-schedule", "--warn-only"])
-    args = arguments.parse_manage_args()
+    args = arguments.parse_schedule_args()
     assert args.verbose is False
     assert args.warn_only is True
     assert args.config_path == "data/config.json"
@@ -85,39 +85,6 @@ def test_parse_scrape_args_with_scrape_options(monkeypatch):
     assert args.list_targets is True
 
 
-def test_parse_predict_args_defaults(monkeypatch):
-    """Test parse_predict_args with default arguments."""
-    monkeypatch.setattr(sys, "argv", ["kivoll-predict"])
-    args = arguments.parse_predict_args()
-    assert args.verbose is False
-    assert args.warn_only is False
-    assert args.config_path == "data/config.json"
-    assert args.model is None
-    assert args.input is None
-
-
-def test_parse_predict_args_with_options(monkeypatch):
-    """Test parse_predict_args with model and input."""
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "kivoll-predict",
-            "--model",
-            "model.pkl",
-            "--input",
-            "data.csv",
-            "--warn-only",
-        ],
-    )
-    args = arguments.parse_predict_args()
-    assert args.verbose is False
-    assert args.warn_only is True
-    assert args.config_path == "data/config.json"
-    assert args.model == "model.pkl"
-    assert args.input == "data.csv"
-
-
 # ---------------------------------------------------------------------------
 # Version Argument Tests
 # ---------------------------------------------------------------------------
@@ -127,7 +94,7 @@ def test_parse_manage_args_version(monkeypatch, capsys):
     """Test that --version displays version and exits for kivoll-schedule."""
     monkeypatch.setattr(sys, "argv", ["kivoll-schedule", "--version"])
     with pytest.raises(SystemExit) as exc_info:
-        arguments.parse_manage_args()
+        arguments.parse_schedule_args()
     assert exc_info.value.code == 0
     captured = capsys.readouterr()
     assert "kivoll-schedule" in captured.out
@@ -145,17 +112,6 @@ def test_parse_scrape_args_version(monkeypatch, capsys):
     assert __version__ in captured.out
 
 
-def test_parse_predict_args_version(monkeypatch, capsys):
-    """Test that --version displays version and exits for kivoll-predict."""
-    monkeypatch.setattr(sys, "argv", ["kivoll-predict", "--version"])
-    with pytest.raises(SystemExit) as exc_info:
-        arguments.parse_predict_args()
-    assert exc_info.value.code == 0
-    captured = capsys.readouterr()
-    assert "kivoll-predict" in captured.out
-    assert __version__ in captured.out
-
-
 # ---------------------------------------------------------------------------
 # Credentials and Environment Variable Tests
 # ---------------------------------------------------------------------------
@@ -170,7 +126,7 @@ def test_env_vars_loaded_into_args(monkeypatch):
     monkeypatch.setenv("WORKER_MIGRATOR_PASSWORD", "migrator_pass")
 
     monkeypatch.setattr(sys, "argv", ["kivoll-schedule"])
-    args = arguments.parse_manage_args()
+    args = arguments.parse_schedule_args()
 
     assert args.db_host == "localhost:5432"
     assert args.scheduler_password == "sched_pass"
@@ -201,7 +157,7 @@ def test_cli_args_override_env_vars(monkeypatch):
             "cli_migrator",
         ],
     )
-    args = arguments.parse_manage_args()
+    args = arguments.parse_schedule_args()
 
     # CLI arguments should override environment variables
     assert args.db_host == "cli_host:5432"
@@ -228,7 +184,7 @@ def test_whitespace_trimming_in_cli_args(monkeypatch):
             "  pass_with_spaces  ",
         ],
     )
-    args = arguments.parse_manage_args()
+    args = arguments.parse_schedule_args()
 
     assert args.db_host == "host_with_spaces"
     assert args.worker_password == "pass_with_spaces"
@@ -245,7 +201,7 @@ def test_default_values_when_nothing_set(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["kivoll-schedule"])
 
     with mock.patch("cliasi.cli.warn") as mock_warn:
-        args = arguments.parse_manage_args()
+        args = arguments.parse_schedule_args()
 
         # Check that defaults are set
         assert args.db_host == "localhost:5432"
@@ -267,7 +223,7 @@ def test_warnings_for_missing_db_host(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["kivoll-schedule"])
 
     with mock.patch("cliasi.cli.warn") as mock_warn:
-        _ = arguments.parse_manage_args()
+        _ = arguments.parse_schedule_args()
 
         # Check that DB_HOST warning was issued
         warn_calls = [call[0][0] for call in mock_warn.call_args_list]
@@ -284,7 +240,7 @@ def test_warnings_for_missing_scheduler_password(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["kivoll-schedule"])
 
     with mock.patch("cliasi.cli.warn") as mock_warn:
-        _ = arguments.parse_manage_args()
+        _ = arguments.parse_schedule_args()
 
         # Check that SCHEDULER_DB_PASSWORD warning was issued
         warn_calls = [call[0][0] for call in mock_warn.call_args_list]
@@ -301,7 +257,7 @@ def test_warnings_for_missing_worker_password(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["kivoll-schedule"])
 
     with mock.patch("cliasi.cli.warn") as mock_warn:
-        _ = arguments.parse_manage_args()
+        _ = arguments.parse_schedule_args()
 
         # Check that WORKER_APP_PASSWORD warning was issued
         warn_calls = [call[0][0] for call in mock_warn.call_args_list]
@@ -318,7 +274,7 @@ def test_warnings_for_missing_migrator_password(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["kivoll-schedule"])
 
     with mock.patch("cliasi.cli.warn") as mock_warn:
-        _ = arguments.parse_manage_args()
+        _ = arguments.parse_schedule_args()
 
         # Check that WORKER_MIGRATOR_PASSWORD warning was issued
         warn_calls = [call[0][0] for call in mock_warn.call_args_list]
@@ -335,7 +291,7 @@ def test_no_warnings_when_env_vars_set(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["kivoll-schedule"])
 
     with mock.patch("cliasi.cli.warn") as mock_warn:
-        _ = arguments.parse_manage_args()
+        _ = arguments.parse_schedule_args()
 
         # No warnings should be issued
         assert mock_warn.call_count == 0
@@ -365,7 +321,7 @@ def test_no_warnings_when_cli_args_set(monkeypatch):
     )
 
     with mock.patch("cliasi.cli.warn") as mock_warn:
-        _ = arguments.parse_manage_args()
+        _ = arguments.parse_schedule_args()
 
         # No warnings should be issued
         assert mock_warn.call_count == 0
@@ -381,7 +337,7 @@ def test_empty_string_treated_as_missing(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["kivoll-schedule"])
 
     with mock.patch("cliasi.cli.warn") as mock_warn:
-        args = arguments.parse_manage_args()
+        args = arguments.parse_schedule_args()
 
         # Check that defaults are set for empty strings
         assert args.db_host == "localhost:5432"
@@ -403,7 +359,7 @@ def test_whitespace_only_treated_as_missing(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["kivoll-schedule"])
 
     with mock.patch("cliasi.cli.warn") as mock_warn:
-        args = arguments.parse_manage_args()
+        args = arguments.parse_schedule_args()
 
         # Check that defaults are set for whitespace-only strings
         assert args.db_host == "localhost:5432"
@@ -425,7 +381,7 @@ def test_partial_credentials_set(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["kivoll-schedule"])
 
     with mock.patch("cliasi.cli.warn") as mock_warn:
-        args = arguments.parse_manage_args()
+        args = arguments.parse_schedule_args()
 
         # Set credentials should be used
         assert args.db_host == "localhost:5432"

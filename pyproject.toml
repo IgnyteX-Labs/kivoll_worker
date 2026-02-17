@@ -72,7 +72,6 @@ Documentation = "https://ignytex-labs.github.io/kivoll_worker/"
 [project.scripts]
 kivoll-schedule = "kivoll_worker.scheduler:main"
 kivoll-scrape = "kivoll_worker.scraper:main"
-kivoll-predict = "kivoll_worker.predict:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

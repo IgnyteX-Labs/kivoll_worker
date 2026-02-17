@@ -4,7 +4,6 @@ Command-line argument parsing for kivoll_worker entry points.
 This module provides argument parsing helpers for each CLI entry point:
 - :func:`parse_manage_args` for ``kivoll-schedule``
 - :func:`parse_scrape_args` for ``kivoll-scrape``
-- :func:`parse_predict_args` for ``kivoll-predict`` (future use)
 
 Each parser adds the shared options ``--verbose``, ``--warn-only``, and
 ``--config-path`` before initializing configuration and error tracking.
@@ -187,7 +186,7 @@ def _parse_common_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
 # ---------------------------------------------------------------------------
 
 
-def parse_manage_args() -> argparse.Namespace:
+def parse_schedule_args() -> argparse.Namespace:
     """
     Parse arguments for the ``kivoll-schedule`` entry point.
 
@@ -249,41 +248,5 @@ def parse_scrape_args() -> argparse.Namespace:
         action="store_true",
         default=False,
         help="List available targets and their respective open hours",
-    )
-    return _parse_common_args(parser)
-
-
-def parse_predict_args() -> argparse.Namespace:
-    """
-    Parse arguments for the ``kivoll-predict`` entry point.
-
-    Predict-specific arguments:
-    - ``--model``: Path to the trained model file.
-    - ``--input``: Path to input data for prediction.
-
-    :returns: Parsed arguments including predict-specific options.
-    :rtype: argparse.Namespace
-
-    .. note::
-        This parser currently serves as a placeholder for future
-        ML functionality and may gain additional options later.
-    """
-    parser = argparse.ArgumentParser(
-        prog="kivoll-predict",
-        description="Run prediction using the (future) neural network model",
-    )
-    parser.add_argument(
-        "--model",
-        dest="model",
-        type=str,
-        default=None,
-        help="Path to model file to use for prediction",
-    )
-    parser.add_argument(
-        "--input",
-        dest="input",
-        type=str,
-        default=None,
-        help="Path to input data file (CSV/JSON) to predict on",
     )
     return _parse_common_args(parser)

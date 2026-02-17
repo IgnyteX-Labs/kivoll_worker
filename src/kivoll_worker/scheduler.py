@@ -34,7 +34,7 @@ from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.blocking import BlockingScheduler
 from cliasi import Cliasi
 
-from kivoll_worker.common.arguments import parse_manage_args
+from kivoll_worker.common.arguments import parse_schedule_args
 from kivoll_worker.common.config import data_dir, get_tz
 from kivoll_worker.scraper import main as scrape
 
@@ -96,7 +96,7 @@ def schedule() -> int:
     :returns: 0 for a successful run.
     :rtype: int
     """
-    args = parse_manage_args()
+    args = parse_schedule_args()
     cli = Cliasi("scheduler")
 
     # Create scheduler with configured timezone
