@@ -251,6 +251,7 @@ def kletterzentrum(args: Namespace, connection: Connection) -> bool:
             response = session.get(url, headers=headers)
             task.update("Fetch complete, checking response") if task else None
             response.raise_for_status()
+            resp = response.text
         except niquests.exceptions.HTTPError as e:
             task.stop() if task else None
             cli.fail(
@@ -267,7 +268,6 @@ def kletterzentrum(args: Namespace, connection: Connection) -> bool:
         cli.success("Kletterzentrum website fetched", logging.DEBUG)
         cli.info("Writing html to data/last_request.html")
         html = ""
-        resp = response.text
         if not resp or not resp.strip():
             cli.warn("Received empty HTML from Kletterzentrum website")
             log_error(
