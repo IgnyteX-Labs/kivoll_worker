@@ -1,25 +1,18 @@
 import os
 import time
 from collections.abc import Generator
-from pathlib import Path
 from typing import Any
 
 import psycopg
 import pytest
-from dotenv import load_dotenv
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from testcontainers.core.container import DockerContainer
-
-# Load test environment variables
-TEST_ENV_PATH = Path(__file__).parent.parent / ".env"
-load_dotenv(TEST_ENV_PATH)
 
 
 @pytest.fixture(scope="session")
 def test_env() -> dict[str, str]:
     """Load and return test environment variables."""
-    load_dotenv(TEST_ENV_PATH)
     return {
         "POSTGRES_USER": os.getenv("POSTGRES_USER", "testadmin"),
         "POSTGRES_PASSWORD": os.getenv("POSTGRES_PASSWORD", "testadminpass"),
