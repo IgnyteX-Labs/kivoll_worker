@@ -119,7 +119,6 @@ def test_worker_image_gets_healthy(
     container = _build_container(built_db_image.tag, test_env)
     container.with_network(get_network)
     container.with_env("DB_HOST", "db:5432")
-    container.with_env("DB_DRIVER", "postgresql")
     try:
         container.start()
         # Wait for health status to be healthy
