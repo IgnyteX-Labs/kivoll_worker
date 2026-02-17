@@ -2,7 +2,7 @@
 Command-line argument parsing for kivoll_worker entry points.
 
 This module provides argument parsing helpers for each CLI entry point:
-- :func:`parse_manage_args` for ``kivoll-schedule``
+- :func:`parse_schedule_args` for ``kivoll-schedule``
 - :func:`parse_scrape_args` for ``kivoll-scrape``
 
 Each parser adds the shared options ``--verbose``, ``--warn-only``, and
