@@ -9,8 +9,11 @@ kivoll_worker = ["py.typed", "defaults/*.json", "storage/migrations/*.sql"]
 testpaths = ["tests"]
 addopts = "-ra"
 markers = [
-    "database: tests that require a Postgres database",
-    "integration: tests build the docker image",
+    "unit: fast tests without external dependencies (default)",
+    "database: tests that require a PostgreSQL database connection",
+    "integration: slow tests that build and run Docker containers",
+    "network: tests that start local HTTP servers for network testing",
+    "slow: tests that take longer to run (includes database, integration, network)",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",

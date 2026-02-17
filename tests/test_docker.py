@@ -107,6 +107,7 @@ def built_db_image(
     )
 
 
+@pytest.mark.slow
 @pytest.mark.integration
 def test_worker_image_gets_healthy(
     built_db_image, postgres_container, test_env: dict[str, str], get_network: Network
@@ -141,6 +142,7 @@ def test_worker_image_gets_healthy(
         container.stop()
 
 
+@pytest.mark.slow
 @pytest.mark.integration
 def test_built_dockerfile(built_db_image: BuiltImage):
     # Skip assertions if build failed; other tests may handle failure details.

@@ -78,6 +78,7 @@ def _ensure_worker_db(host: str, port: int, test_env: dict[str, str]) -> None:
         )
 
 
+@pytest.mark.slow
 @pytest.mark.database
 def test_connect_accepts_storage(db_engine) -> None:
     engine = _engine_from_session(db_engine)
@@ -87,6 +88,7 @@ def test_connect_accepts_storage(db_engine) -> None:
         assert conn.execute(text("SELECT 1")).scalar_one() == 1
 
 
+@pytest.mark.slow
 @pytest.mark.database
 def test_connect_accepts_engine(db_engine) -> None:
     engine = _engine_from_session(db_engine)
@@ -95,6 +97,7 @@ def test_connect_accepts_engine(db_engine) -> None:
         assert conn.execute(text("SELECT 1")).scalar_one() == 1
 
 
+@pytest.mark.slow
 @pytest.mark.database
 def test_storage_connect_creates_connection(db_engine) -> None:
     engine = _engine_from_session(db_engine)
@@ -104,6 +107,7 @@ def test_storage_connect_creates_connection(db_engine) -> None:
         assert conn.execute(text("SELECT 1")).scalar_one() == 1
 
 
+@pytest.mark.slow
 @pytest.mark.database
 def test_apply_migrations_creates_tables_and_records(db_engine) -> None:
     session = db_engine
@@ -124,6 +128,7 @@ def test_apply_migrations_creates_tables_and_records(db_engine) -> None:
     assert "kletterzentrum_data" in table_names
 
 
+@pytest.mark.slow
 @pytest.mark.database
 def test_apply_migrations_is_idempotent(db_engine) -> None:
     session = db_engine
@@ -135,6 +140,7 @@ def test_apply_migrations_is_idempotent(db_engine) -> None:
     assert count_before == count_after
 
 
+@pytest.mark.slow
 @pytest.mark.database
 def test_apply_migration_skips_empty_file(db_engine) -> None:
     session = db_engine
@@ -146,6 +152,7 @@ def test_apply_migration_skips_empty_file(db_engine) -> None:
     assert count == 0
 
 
+@pytest.mark.slow
 @pytest.mark.database
 def test_init_db_returns_storage_and_applies_migrations(test_db, test_env) -> None:
     host = test_db.get_container_host_ip()
@@ -168,6 +175,7 @@ def test_init_db_returns_storage_and_applies_migrations(test_db, test_env) -> No
     assert applied == _migration_ids()
 
 
+@pytest.mark.slow
 @pytest.mark.database
 def test_apply_migration_failure_raises_and_does_not_record(db_engine) -> None:
     session = db_engine

@@ -130,6 +130,7 @@ def test_validate_parameters_with_cache() -> None:
 # ---------------------
 
 
+@pytest.mark.slow
 @pytest.mark.database
 def test_load_columns_from_db_and_get_valid_columns(db_engine, monkeypatch) -> None:
     session = db_engine
@@ -163,6 +164,7 @@ def test_load_columns_from_db_and_get_valid_columns(db_engine, monkeypatch) -> N
     assert "wind_gusts_10m" in weather.get_valid_columns("current", conn)
 
 
+@pytest.mark.slow
 @pytest.mark.database
 def test_insert_daily_with_arrays(db_engine) -> None:
     session = db_engine
@@ -193,6 +195,7 @@ def test_insert_daily_with_arrays(db_engine) -> None:
     assert rows == [(100, 1234, "loc", 5.0, 0.1), (200, 1234, "loc", 6.0, 0.0)]
 
 
+@pytest.mark.slow
 @pytest.mark.database
 def test_insert_returns_false_when_no_valid_params(db_engine) -> None:
     session = db_engine
@@ -413,6 +416,7 @@ def test__load_columns_from_db_raises_on_sqlalchemy_error(monkeypatch) -> None:
 # ---------------------
 
 
+@pytest.mark.slow
 @pytest.mark.database
 def test_get_weather_table_caches_table_object(db_engine) -> None:
     session = db_engine
@@ -426,6 +430,7 @@ def test_get_weather_table_caches_table_object(db_engine) -> None:
     assert t1 is t2
 
 
+@pytest.mark.slow
 @pytest.mark.database
 def test_insert_weather_data_returns_false_on_execute_error(
     db_engine, monkeypatch
@@ -459,6 +464,7 @@ def test_insert_weather_data_returns_false_on_execute_error(
         assert not ok
 
 
+@pytest.mark.slow
 @pytest.mark.database
 def test_insert_weather_data_handles_none_and_casting(db_engine) -> None:
     session = db_engine
@@ -571,6 +577,7 @@ class _FakeResponse:
         return self._daily
 
 
+@pytest.mark.slow
 @pytest.mark.database
 def test_weather_success_inserts_all_resolutions(db_engine, monkeypatch):
     """End-to-end exercise of weather() writing current/hourly/daily rows."""
@@ -658,6 +665,7 @@ def test_weather_success_inserts_all_resolutions(db_engine, monkeypatch):
         assert daily_rows and daily_rows[0][0] == 2000
 
 
+@pytest.mark.slow
 @pytest.mark.database
 def test_weather_handles_missing_subobjects_and_returns_false(
     db_engine, monkeypatch
@@ -702,6 +710,7 @@ def test_weather_handles_missing_subobjects_and_returns_false(
     assert ok is False
 
 
+@pytest.mark.slow
 @pytest.mark.database
 def test_weather_malformed_config_returns_false(monkeypatch) -> None:
     # Malformed config where url or parameters are falsy
@@ -712,6 +721,7 @@ def test_weather_malformed_config_returns_false(monkeypatch) -> None:
     assert result is False
 
 
+@pytest.mark.slow
 @pytest.mark.database
 def test_weather_request_error_returns_false(monkeypatch) -> None:
     # Valid-ish config but API client raises
@@ -747,6 +757,7 @@ def test_weather_request_error_returns_false(monkeypatch) -> None:
     assert result is False
 
 
+@pytest.mark.slow
 @pytest.mark.database
 def test_weather_returns_false_on_sqlalchemy_error(monkeypatch, dummy_cli) -> None:
     cfg = {

@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import niquests
+import pytest
 
 from kivoll_worker.scrape import session as session_mod
 
@@ -98,6 +99,8 @@ def _test_server(responses: list[tuple]) -> Generator[tuple[str, int], None, Non
         thread.join(timeout=1)
 
 
+@pytest.mark.slow
+@pytest.mark.network
 def test_retry_and_cache_integration(tmp_path) -> None:
     """Integration test: server will first return 2x 500 errors, then a 200.
 
@@ -151,6 +154,8 @@ def test_retry_and_cache_integration(tmp_path) -> None:
     assert r2.text == "cached-body"
 
 
+@pytest.mark.slow
+@pytest.mark.network
 def test_retry_stops_after_max_attempts() -> None:
     """Verify that retries stop after TOTAL_RETRIES attempts and don't continue infinitely.
 
