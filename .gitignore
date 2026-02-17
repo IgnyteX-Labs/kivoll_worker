@@ -1,6 +1,6 @@
 # kivoll_worker relevant ignores
 # data is default data directory for kivoll_worker
-src/kivoll_worker/__about__.py
+src/kivoll_worker/_version.py
 data/
 
 .env
