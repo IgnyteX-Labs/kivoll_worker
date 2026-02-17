@@ -490,6 +490,7 @@ source = { editable = "." }
 dependencies = [
     { name = "apscheduler" },
     { name = "argparse" },
+    { name = "beautifulsoup4" },
     { name = "cliasi" },
     { name = "niquests" },
     { name = "numpy" },
@@ -532,6 +533,7 @@ test = [
 requires-dist = [
     { name = "apscheduler", specifier = ">=3.11.2" },
     { name = "argparse", specifier = ">=1.4.0" },
+    { name = "beautifulsoup4", specifier = ">=4.14.3" },
     { name = "cliasi", specifier = ">=0.4.2" },
     { name = "niquests", specifier = ">=3.16.1" },
     { name = "numpy", specifier = ">=2.2.6" },

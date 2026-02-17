@@ -1,6 +1,6 @@
 .PHONY: install test lint format typecheck docs build clean
 .PHONY: check help docker-build docker-headless docker-shell env
-.PHONY: db-up db-down db-reset check-env
+.PHONY: db-up db-down db-reset check-env check-version
 
 # Docker image name
 DOCKER_IMAGE ?= kivoll_worker:latest
@@ -115,19 +115,31 @@ check-env:
 		exit 1; \
 	fi
 
-docker-headless: check-env
+# Check if local _version.py exists - needed to be mounted into container
+check-version:
+	@if [ ! -f src/kivoll_worker/_version.py ]; then \
+		echo "Error: _version.py not found locally!"; \
+		echo "This file is generated during uv sync / build."; \
+		echo "Run: make install / uv sync"; \
+		echo "Then retry running the container"; \
+		exit 1; \
+	fi
+
+docker-headless: check-env check-version
 	@echo "Starting Docker container with .env configuration..."
 	docker run --rm -d \
 		--name $(DOCKER_CONTAINER) \
 		--network host \
 		--env-file .env \
 		--env DB_HOST=localhost:5432 \
+		-v $(PWD)/src:/app/src \
 		-v $(PWD)/data:/app/data \
+		-v $(PWD)/.git:/app/.git \
 		$(DOCKER_IMAGE)
 
 up: docker-headless
 
-docker-shell: check-env
+docker-shell: check-env check-version
 	@echo "Opening shell in Docker container..."
 	docker run --rm -it \
 		--name $(DOCKER_CONTAINER)-shell \
@@ -135,6 +147,8 @@ docker-shell: check-env
 		--env-file .env \
 		--env DB_HOST=localhost:5432 \
 		-v $(PWD)/src:/app/src \
+		-v $(PWD)/data:/app/data \
+		-v $(PWD)/.git:/app/.git \
 		--entrypoint /bin/bash \
 		$(DOCKER_IMAGE)
 
