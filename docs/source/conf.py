@@ -31,7 +31,7 @@ try:
         # Fallback to import if available (e.g., when running without install)
         try:
             from kivoll_worker import __version__ as release  # type: ignore
-        except Exception:
+        except ImportError:
             release = "0.0.0"
 except Exception:
     release = "0.0.0"
