@@ -1,6 +1,6 @@
 """Fetch and parse occupancy (Auslastung) data from the Kletterzentrum website.
 
-Prefer importing the ` kletterzentrum ` function for programmatic usage.
+Prefer importing the ``kletterzentrum`` function for programmatic usage.
 """
 
 import logging
