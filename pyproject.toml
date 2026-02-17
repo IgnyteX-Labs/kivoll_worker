@@ -1,9 +1,8 @@
 [build-system]
-requires = ["setuptools>=80", "setuptools-scm>=8"]
-build-backend = "setuptools.build_meta"
+requires = ["flit_scm"]
+build-backend = "flit_scm:buildapi"
 
-[tool.setuptools.package-data]
-kivoll_worker = ["py.typed", "defaults/*.json", "storage/migrations/*.sql"]
+
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -77,13 +76,16 @@ Documentation = "https://ignytex-labs.github.io/kivoll_worker/"
 kivoll-schedule = "kivoll_worker.scheduler:main"
 kivoll-scrape = "kivoll_worker.scraper:main"
 
-[tool.setuptools.packages.find]
-where = ["src"]
-include = ["kivoll_worker*"]
 
-[tool.setuptools_scm]
+
+[tool.flit_scm]
 write_to = "src/kivoll_worker/__about__.py"
-fallback_version = "0+unknown"
+
+[tool.flit.sdist]
+include = [
+    "src/kivoll_worker/defaults/*.json",
+    "src/kivoll_worker/storage/migrations/*.sql",
+]
 
 [dependency-groups]
 test = [
