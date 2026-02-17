@@ -233,8 +233,6 @@ def connect(storage: Storage | Engine) -> Connection:
         >>> with connect(storage) as conn:
         ...     conn.execute(...)
     """
-    if isinstance(storage, Storage):
-        return storage.connect()
     return storage.connect()
 
 
