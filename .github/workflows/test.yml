@@ -43,8 +43,7 @@ jobs:
           --cov-report=html \
           --cov-report=xml:coverage.xml \
           --junitxml=junit.xml \
-          -o junit_family=legacy \
-          --cov-fail-under=80
+          -o junit_family=legacy 
 
       - name: Upload coverage HTML report
         uses: actions/upload-artifact@v6

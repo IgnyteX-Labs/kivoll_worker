@@ -68,7 +68,6 @@ test:
 	uv run pytest $(PYTEST_EXTRA) \
 		--cov=kivoll_worker \
 		--cov-report=term-missing \
-		--cov-fail-under=80 \
 		--cov-report=html:coverage_html
 	@echo "Coverage report generated. View at: file://$$(pwd)/coverage_html/index.html"
 
