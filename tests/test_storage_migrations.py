@@ -3,6 +3,7 @@ from importlib.resources import files
 
 import psycopg
 import pytest
+from psycopg import sql
 from sqlalchemy import text
 
 from kivoll_worker import storage
@@ -34,13 +35,17 @@ def _ensure_worker_db(host: str, port: int, test_env: dict[str, str]) -> None:
             "SELECT 1 FROM pg_roles WHERE rolname = 'worker_migrator'"
         ).fetchone():
             conn.execute(
-                f"CREATE ROLE worker_migrator LOGIN PASSWORD '{worker_migrator_password}'"
+                sql.SQL("CREATE ROLE worker_migrator LOGIN PASSWORD {}").format(
+                    sql.Literal(worker_migrator_password)
+                )
             )
         if not conn.execute(
             "SELECT 1 FROM pg_roles WHERE rolname = 'worker_app'"
         ).fetchone():
             conn.execute(
-                f"CREATE ROLE worker_app LOGIN PASSWORD '{worker_app_password}'"
+                sql.SQL("CREATE ROLE worker_app LOGIN PASSWORD {}").format(
+                    sql.Literal(worker_app_password)
+                )
             )
         if not conn.execute(
             "SELECT 1 FROM pg_database WHERE datname = 'worker_db'"
@@ -196,3 +201,84 @@ def test_apply_migration_failure_raises_and_does_not_record(db_engine) -> None:
         text("SELECT COUNT(*) FROM migrations WHERE id = '0001_broken.sql'")
     ).scalar_one()
     assert count == 0
+
+
+@pytest.mark.slow
+@pytest.mark.database
+def test_special_characters_in_passwords(test_db) -> None:
+    """Test that passwords with special characters work correctly."""
+    # Test with a password containing various special characters that could
+    # break SQL queries or URL parsing: quotes, semicolons, @, %, etc.
+    special_password = "p@ss'w;rd%123&test=value"
+    admin_user = "testadmin"
+    admin_password = "testadminpass"
+    admin_db = "postgres"
+
+    host = test_db.get_container_host_ip()
+    port = int(test_db.get_exposed_port(5432))
+
+    # Test 1: CREATE ROLE with psycopg sql.Literal should handle special chars
+    with psycopg.connect(
+        host=host,
+        port=port,
+        user=admin_user,
+        password=admin_password,
+        dbname=admin_db,
+        autocommit=True,
+    ) as conn:
+        # Clean up if role exists from previous run
+        conn.execute(
+            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+            "WHERE usename = 'test_special_user'"
+        )
+        conn.execute("DROP ROLE IF EXISTS test_special_user")
+
+        # Create role with special character password using sql.Literal
+        conn.execute(
+            sql.SQL("CREATE ROLE test_special_user LOGIN PASSWORD {}").format(
+                sql.Literal(special_password)
+            )
+        )
+
+    # Test 2: Verify we can connect using the special password
+    with psycopg.connect(
+        host=host,
+        port=port,
+        user="test_special_user",
+        password=special_password,
+        dbname=admin_db,
+        autocommit=True,
+    ) as conn:
+        result = conn.execute("SELECT 1").fetchone()
+        assert result[0] == 1
+
+    # Test 3: Verify SQLAlchemy URL encoding works with special passwords
+    from urllib.parse import quote_plus
+
+    from sqlalchemy import create_engine
+
+    url = (
+        f"postgresql+psycopg://"
+        f"test_special_user:{quote_plus(special_password)}"
+        f"@{host}:{port}/{admin_db}"
+    )
+    engine = create_engine(url)
+    with engine.connect() as conn:
+        result = conn.execute(text("SELECT 1")).scalar_one()
+        assert result == 1
+    engine.dispose()
+
+    # Cleanup
+    with psycopg.connect(
+        host=host,
+        port=port,
+        user=admin_user,
+        password=admin_password,
+        dbname=admin_db,
+        autocommit=True,
+    ) as conn:
+        conn.execute(
+            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+            "WHERE usename = 'test_special_user'"
+        )
+        conn.execute("DROP ROLE IF EXISTS test_special_user")

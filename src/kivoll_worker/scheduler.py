@@ -27,6 +27,7 @@ Example:
 
 from datetime import datetime as dt
 from pathlib import Path
+from urllib.parse import quote_plus
 
 import apscheduler.events
 from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
@@ -107,7 +108,7 @@ def schedule() -> int:
     scheduler.add_jobstore(
         SQLAlchemyJobStore(
             url=f"postgresql+psycopg://"
-            f"scheduler:{args.scheduler_password}@{args.db_host}/scheduler_db"
+            f"scheduler:{quote_plus(args.scheduler_password)}@{args.db_host}/scheduler_db"
         )
     )
 

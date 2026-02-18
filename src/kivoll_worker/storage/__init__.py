@@ -35,6 +35,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from importlib.resources import files
 from pathlib import Path
+from urllib.parse import quote_plus
 
 from cliasi import Cliasi
 from sqlalchemy import Connection, Engine, create_engine, text
@@ -202,7 +203,7 @@ def init_db(args: Namespace) -> Storage:
     # Create migrator connection
     engine = create_engine(
         f"postgresql+psycopg://"
-        f"worker_migrator:{args.migrator_password}@{args.db_host}/worker_db"
+        f"worker_migrator:{quote_plus(args.migrator_password)}@{args.db_host}/worker_db"
     )
     conn = engine.connect()
     try:
@@ -215,7 +216,7 @@ def init_db(args: Namespace) -> Storage:
 
     app_engine = create_engine(
         f"postgresql+psycopg://"
-        f"worker_app:{args.worker_password}@{args.db_host}/worker_db"
+        f"worker_app:{quote_plus(args.worker_password)}@{args.db_host}/worker_db"
     )
     return Storage(app_engine)
 

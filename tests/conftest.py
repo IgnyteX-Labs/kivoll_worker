@@ -2,6 +2,7 @@ import os
 import time
 from collections.abc import Generator
 from typing import Any
+from urllib.parse import quote_plus
 
 import psycopg
 import pytest
@@ -60,9 +61,11 @@ def db_engine(
     host = test_db.get_container_host_ip()
     port = int(test_db.get_exposed_port(5432))
 
+    user = quote_plus(test_env["POSTGRES_USER"])
+    password = quote_plus(test_env["POSTGRES_PASSWORD"])
     url = (
         f"postgresql+psycopg://"
-        f"{test_env['POSTGRES_USER']}:{test_env['POSTGRES_PASSWORD']}"
+        f"{user}:{password}"
         f"@{host}:{port}/{test_env['POSTGRES_DB']}"
     )
 
