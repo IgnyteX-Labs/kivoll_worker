@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from datetime import timedelta
 from typing import Any, Literal
 
+import niquests
 import openmeteo_requests
 import sqlalchemy.sql.dml
 from cliasi import Cliasi
@@ -172,7 +173,15 @@ def weather(connection: Connection) -> bool:
         openmeteo = openmeteo_requests.Client(session=openmeteo_session)
 
         try:
-            responses = openmeteo.weather_api(url, parameters)
+            responses = openmeteo.weather_api(url, parameters, timeout=30)
+        except niquests.exceptions.Timeout as e:
+            task.stop() if task else None
+            cli.fail(
+                "Request timed out after 30 seconds!",
+                messages_stay_in_one_line=False,
+            )
+            log_error(e, "weather:fetch:timeout", False)
+            return False
         except OpenMeteoRequestsError as e:
             task.stop()
             cli.fail(

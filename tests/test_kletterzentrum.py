@@ -286,3 +286,35 @@ def test_kletterzentrum_parsing_failure(
         result = kletterzentrum.kletterzentrum(args, mock_conn)
 
     assert result is True  # Parsing succeeds even with invalid HTML
+
+
+def test_kletterzentrum_timeout(
+    mock_kletterzentrum_cliasi,
+    dummy_cli,
+    mock_kletterzentrum_config,
+    mock_kletterzentrum_log_error,
+    monkeypatch,
+    tmp_path,
+):
+    """Test handling of request timeout errors during fetch."""
+    args = Namespace(dry_run=False)
+    monkeypatch.setattr(kletterzentrum, "config", mock_kletterzentrum_config)
+    monkeypatch.setattr(kletterzentrum, "__short_version__", "1.0")
+
+    # Mock session to raise Timeout exception
+    mock_session = Mock()
+    mock_session.get.side_effect = niquests.exceptions.Timeout("Request timed out")
+
+    with patch(
+        "kivoll_worker.scrape.kletterzentrum.create_scrape_session",
+        return_value=mock_session,
+    ):
+        result = kletterzentrum.kletterzentrum(args, Mock())
+
+    assert result is False
+    assert len(dummy_cli.failed) > 0 and "timed out" in dummy_cli.failed[0]
+    # Verify the timeout parameter was passed to session.get
+    mock_session.get.assert_called_once()
+    call_kwargs = mock_session.get.call_args[1]
+    assert "timeout" in call_kwargs
+    assert call_kwargs["timeout"] == 30

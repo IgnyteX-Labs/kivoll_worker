@@ -248,10 +248,18 @@ def kletterzentrum(args: Namespace, connection: Connection) -> bool:
             f"Fetching KI occupancy at {url}", verbosity=logging.DEBUG
         )
         try:
-            response = session.get(url, headers=headers)
+            response = session.get(url, headers=headers, timeout=30)
             task.update("Fetch complete, checking response") if task else None
             response.raise_for_status()
             resp = response.text
+        except niquests.exceptions.Timeout as e:
+            task.stop() if task else None
+            cli.fail(
+                "Request timed out after 30 seconds!",
+                messages_stay_in_one_line=False,
+            )
+            log_error(e, "kletterzentrum:fetch:timeout", False)
+            return False
         except niquests.exceptions.HTTPError as e:
             task.stop() if task else None
             cli.fail(
