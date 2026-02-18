@@ -16,9 +16,7 @@ COPY src ./src
 COPY .git ./.git
 
 RUN chmod +x healthcheck.sh
-
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=cache,id=uv-cache,target=/root/.cache/uv,sharing=locked \
+RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv,sharing=locked \
     uv build --wheel
 
 
