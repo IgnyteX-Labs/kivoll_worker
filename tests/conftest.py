@@ -12,7 +12,7 @@ from testcontainers.core.container import DockerContainer
 
 @pytest.fixture(scope="session")
 def test_env() -> dict[str, str]:
-    """Load and return test environment variables."""
+    """Read test environment variables (with defaults) and return them as a dict."""
     return {
         "POSTGRES_USER": os.getenv("POSTGRES_USER", "testadmin"),
         "POSTGRES_PASSWORD": os.getenv("POSTGRES_PASSWORD", "testadminpass"),
