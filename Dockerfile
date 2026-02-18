@@ -11,15 +11,12 @@ RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-COPY pyproject.toml uv.lock README.md healthcheck.sh LICENSE ./
-COPY src ./src
-COPY .git ./.git
-COPY .gitignore ./.gitignore
+COPY . .
 
-RUN chmod +x healthcheck.sh
 RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv,sharing=locked \
     uv build --wheel
 
+RUN chmod +x healthcheck.sh
 
 # ---- Runtime ----
 FROM ghcr.io/astral-sh/uv:python3.14-trixie-slim
