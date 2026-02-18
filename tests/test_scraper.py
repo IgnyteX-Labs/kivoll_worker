@@ -125,9 +125,8 @@ def test_main_successful_scraping(
     args = Namespace(list_targets=False, time_of_day=None, targets="weather")
     monkeypatch.setattr(scraper, "parse_scrape_args", lambda: args)
     monkeypatch.setattr(scraper, "_reference_time", lambda *args, **kwargs: time(10, 0))
-    monkeypatch.setattr(scraper, "connect", mock.Mock())
     mock_db = mock.Mock()
-    monkeypatch.setattr(scraper, "connect", lambda: mock_db)
+    monkeypatch.setattr(scraper, "connect", lambda _storage: mock_db)
     # Mock weather function to return True
     with mock.patch.object(scraper, "weather", return_value=True):
         result = scraper.main()
@@ -146,9 +145,8 @@ def test_main_partial_failure(
     )
     monkeypatch.setattr(scraper, "parse_scrape_args", lambda: args)
     monkeypatch.setattr(scraper, "_reference_time", lambda *args, **kwargs: time(10, 0))
-    monkeypatch.setattr(scraper, "connect", mock.Mock())
     mock_db = mock.Mock()
-    monkeypatch.setattr(scraper, "connect", lambda: mock_db)
+    monkeypatch.setattr(scraper, "connect", lambda _storage: mock_db)
 
     # Mock weather to succeed, kletterzentrum to fail
     def mock_weather(conn):
@@ -179,9 +177,8 @@ def test_main_exception_during_scraping(
     args = Namespace(list_targets=False, time_of_day=None, targets="weather")
     monkeypatch.setattr(scraper, "parse_scrape_args", lambda: args)
     monkeypatch.setattr(scraper, "_reference_time", lambda *args, **kwargs: time(10, 0))
-    monkeypatch.setattr(scraper, "connect", mock.Mock())
     mock_db = mock.Mock()
-    monkeypatch.setattr(scraper, "connect", lambda: mock_db)
+    monkeypatch.setattr(scraper, "connect", lambda _storage: mock_db)
     # Mock weather to raise exception
     with mock.patch.object(scraper, "weather", side_effect=Exception("Test error")):
         result = scraper.main()

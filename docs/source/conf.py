@@ -2,9 +2,7 @@ import os
 import sys
 import sqlite3
 
-from docutils import nodes
-from docutils.parsers.rst import Directive, Parser
-from docutils.utils import new_document
+from docutils.parsers.rst import Directive
 from docutils.core import publish_doctree
 
 sys.path.insert(0, os.path.abspath(os.path.join("..", "..", "src")))
@@ -33,7 +31,7 @@ try:
         # Fallback to import if available (e.g., when running without install)
         try:
             from kivoll_worker import __version__ as release  # type: ignore
-        except Exception:
+        except ImportError:
             release = "0.0.0"
 except Exception:
     release = "0.0.0"

@@ -12,6 +12,7 @@ from testcontainers.core.container import DockerContainer
 from testcontainers.core.network import Network
 
 from conftest import _build_container, _wait_for_db_ready
+from kivoll_worker import __version__
 
 DATABASE_IMG = "ghcr.io/ignytex-labs/kivoll_db:0.1.0"
 
@@ -107,6 +108,7 @@ def built_db_image(
     )
 
 
+@pytest.mark.slow
 @pytest.mark.integration
 def test_worker_image_gets_healthy(
     built_db_image, postgres_container, test_env: dict[str, str], get_network: Network
@@ -118,7 +120,6 @@ def test_worker_image_gets_healthy(
     container = _build_container(built_db_image.tag, test_env)
     container.with_network(get_network)
     container.with_env("DB_HOST", "db:5432")
-    container.with_env("DB_DRIVER", "postgresql")
     try:
         container.start()
         # Wait for health status to be healthy
@@ -141,11 +142,15 @@ def test_worker_image_gets_healthy(
         container.stop()
 
 
+@pytest.mark.slow
 @pytest.mark.integration
 def test_built_dockerfile(built_db_image: BuiltImage):
     # Skip assertions if build failed; other tests may handle failure details.
     if not built_db_image.ok:
-        pytest.fail("Docker build failed; skipping dockerfile tests")
+        pytest.fail(
+            "Docker build failed; skipping dockerfile tests\n"
+            f"Error: {built_db_image.stderr}"
+        )
 
     assert built_db_image.tag, "Built image tag should not be empty"
     inspect = subprocess.run(
@@ -159,3 +164,41 @@ def test_built_dockerfile(built_db_image: BuiltImage):
         f"stderr:\n{inspect.stderr}\n"
     )
     assert built_db_image.stdout or built_db_image.stderr, "docker build output missing"
+
+
+@pytest.mark.slow
+@pytest.mark.integration
+def test_container_version_matches_project(built_db_image: BuiltImage):
+    """Test that the version output from the container matches the project version."""
+    if not built_db_image.ok:
+        pytest.skip("Docker build failed; skipping version test")
+
+    # Run the container and execute the version command
+    result = subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            built_db_image.tag,
+            "uv",
+            "run",
+            "kivoll-scrape",
+            "--version",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+    assert result.returncode == 0, (
+        f"Failed to get version from container: {result.stderr}"
+    )
+
+    # Extract version from command output (typically "kivoll_worker <version>")
+    container_version = result.stdout.strip().split()[-1]
+
+    # Compare with project version
+    assert container_version == __version__, (
+        f"Container version '{container_version}' "
+        f"does not match project version '{__version__}'"
+    )

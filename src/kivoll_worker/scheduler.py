@@ -10,22 +10,24 @@ a heartbeat file for Docker healthchecks, and persistent job storage.
 Features:
     - Periodic weather data collection (outside climbing hours)
     - Kletterzentrum occupancy scraping (during opening hours)
-    - Heartbeat file updates for Docker healthchecks
-    - Persistent job storage in SQLite/PostgreSQL
+    - Heartbeat file updates for Docker health checks
+    - Persistent job storage in PostgreSQL
 
 Entry Points:
     - `kivoll-schedule`: Starts the blocking scheduler
 
 Environment Variables:
-    - `SCHEDULER_DB_URL`: Database URL for job persistence (default: sqlite:///data/jobs.sqlite3)
+    - `DB_HOST`: Database URL for job persistence
+    - `SCHEDULER_DB_PASSWORD`: Scheduler user password
+    - variables required for kivoll-scrape
 
 Example:
     $ kivoll-schedule --verbose
 """
 
-import os
 from datetime import datetime as dt
 from pathlib import Path
+from urllib.parse import quote_plus
 
 import apscheduler.events
 from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
@@ -33,7 +35,7 @@ from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.blocking import BlockingScheduler
 from cliasi import Cliasi
 
-from kivoll_worker.common.arguments import parse_manage_args
+from kivoll_worker.common.arguments import parse_schedule_args
 from kivoll_worker.common.config import data_dir, get_tz
 from kivoll_worker.scraper import main as scrape
 
@@ -62,12 +64,6 @@ DESIRED_JOBS = {
         "minute": "0",
     },
 }
-
-# Database URL for persistent job storage
-# In Docker, this is set via environment variable to use PostgreSQL
-db_host = os.environ.get("DB_HOST")
-db_password = os.environ.get("SCHEDULER_DB_PASSWORD")
-db_driver = os.environ.get("DB_DRIVER")
 
 
 def main() -> int:
@@ -101,19 +97,18 @@ def schedule() -> int:
     :returns: 0 for a successful run.
     :rtype: int
     """
-    _ = parse_manage_args()
+    args = parse_schedule_args()
     cli = Cliasi("scheduler")
 
     # Create scheduler with configured timezone
     scheduler = BlockingScheduler(timezone=get_tz(cli))
 
-    # Connect to persistent job store (SQLite locally, PostgreSQL in Docker)
+    # Connect to persistent job store
     cli.log("Connecting to job store")
     scheduler.add_jobstore(
         SQLAlchemyJobStore(
-            url=f"postgresql+psycopg://scheduler:{db_password}@{db_host}/scheduler_db"
-            if db_host and db_password and db_driver == "postgresql"
-            else "sqlite:///data/jobs.sqlite3"
+            url=f"postgresql+psycopg://"
+            f"scheduler:{quote_plus(args.scheduler_password)}@{args.db_host}/scheduler_db"
         )
     )
 

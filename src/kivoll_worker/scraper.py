@@ -200,7 +200,7 @@ def main() -> int:
         return 0
 
     # Initialize database connection and run migrations
-    init_db()
+    storage = init_db(args)
 
     # Determine reference time for target selection
     try:
@@ -226,8 +226,9 @@ def main() -> int:
             and callable(runner)
         ):
             cli.info(f"Scraping {target}", message_right=f"[{idx}/{total}]")
+            db = None
             try:
-                db = connect()
+                db = connect(storage)
                 success = runner(args, db)
                 if success:
                     db.commit()
@@ -240,8 +241,9 @@ def main() -> int:
                     f"{target} scrape raised an exception: {exc}",
                     messages_stay_in_one_line=False,
                 )
-                db.rollback()
-                db.close()
+                if db is not None:
+                    db.rollback()
+                    db.close()
                 success = False
             if not success:
                 failed += 1

@@ -2,7 +2,7 @@
 Database storage and migration management for kivoll_worker.
 
 This module provides:
-  - SQLite/PostgreSQL database connection management
+  - PostgreSQL database connection management
   - Automatic SQL migration system for schema versioning
   - Connection pooling via SQLAlchemy
 
@@ -16,44 +16,32 @@ Migration files should be named with a numeric prefix for ordering:
     0003_add_indexes.sql
 
 Environment Variables:
-    - WORKER_DB_URL: Database connection URL (default: sqlite:///data/kivoll.sqlite3)
-                     For PostgreSQL: postgresql+psycopg://user:pass@host:port/dbname
+    - DB_HOST: Database host URL (e.g., "localhost" or "db:5432")
+    - WORKER_APP_PASSWORD: Worker user password
+    - WORKER_MIGRATOR_PASSWORD: Migrator user password
 
 Example:
-    >>> from kivoll_worker.storage import init_db, connect
-    >>> init_db()  # Apply pending migrations
-    >>> with connect() as conn:
+    >>> from kivoll_worker.storage import init_db
+    >>> storage = init_db(args)  # Apply pending migrations
+    >>> with storage.connect() as conn:
     ...     result = conn.execute(text("SELECT * FROM weather_hourly"))
 """
 
 from __future__ import annotations
 
 import logging
-import os
+from argparse import Namespace
+from dataclasses import dataclass
 from datetime import datetime
 from importlib.resources import files
 from pathlib import Path
+from urllib.parse import quote_plus
 
 from cliasi import Cliasi
 from sqlalchemy import Connection, Engine, create_engine, text
 
-from ..common import config
-
 # CLI instance for database-related logging (reinitialized in init_db)
 cli: Cliasi = Cliasi("uninitialized")
-
-# Database connection URL from environment (for Docker/production use)
-# Falls back to SQLite file in data directory if not set
-db_host = os.environ.get("DB_HOST")
-db_password = os.environ.get("WORKER_APP_PASSWORD")
-migrator_password = os.environ.get("WORKER_MIGRATOR_PASSWORD")
-db_driver = os.environ.get("DB_DRIVER")
-
-# Default SQLite database filename
-DATABASE_FILE = "kivoll.sqlite3"
-
-# Cached SQLAlchemy engine (lazily initialized)
-_engine: Engine | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -185,7 +173,18 @@ def _apply_migrations(conn: Connection) -> None:
 # ---------------------------------------------------------------------------
 
 
-def init_db() -> None:
+@dataclass(frozen=True)
+class Storage:
+    """Typed wrapper around a SQLAlchemy engine."""
+
+    engine: Engine
+
+    def connect(self) -> Connection:
+        """Get a new database connection from the engine."""
+        return self.engine.connect()
+
+
+def init_db(args: Namespace) -> Storage:
     """
     Initialize the database connection and apply pending migrations.
 
@@ -194,15 +193,17 @@ def init_db() -> None:
       1. Establishes a connection to the database
       2. Creates the migrations table if needed
       3. Applies any pending SQL migrations
+
+    :param args: Command-line arguments containing database connection info
+    :returns: Storage wrapper for the worker application engine
     """
     global cli
     cli = Cliasi("DB")
     cli.log("Connecting to DB")
     # Create migrator connection
     engine = create_engine(
-        f"postgresql+psycopg://worker_migrator:{migrator_password}@{db_host}/worker_db"
-        if db_host and db_password and db_driver == "postgresql"
-        else "sqlite:///" + str(config.data_dir() / DATABASE_FILE)
+        f"postgresql+psycopg://"
+        f"worker_migrator:{quote_plus(args.migrator_password)}@{args.db_host}/worker_db"
     )
     conn = engine.connect()
     try:
@@ -213,28 +214,16 @@ def init_db() -> None:
     finally:
         conn.close()
 
+    app_engine = create_engine(
+        f"postgresql+psycopg://"
+        f"worker_app:{quote_plus(args.worker_password)}@{args.db_host}/worker_db"
+    )
+    return Storage(app_engine)
 
-def _ensure_engine() -> Engine:
+
+def connect(storage: Storage | Engine) -> Connection:
     """
-    Get or create the SQLAlchemy engine.
-
-    The engine is lazily created on first access and cached for reuse.
-    Uses WORKER_DB_URL environment variable if set, otherwise falls back
-    to a SQLite database in the configured data directory.
-    """
-    global _engine
-    if _engine is None:
-        _engine = create_engine(
-            f"postgresql+psycopg://worker_app:{db_password}@{db_host}/worker_db"
-            if db_host and db_password and db_driver == "postgresql"
-            else "sqlite:///" + str(config.data_dir() / DATABASE_FILE)
-        )
-    return _engine
-
-
-def connect() -> Connection:
-    """
-    Get a new database connection.
+    Get a new database connection from a Storage wrapper or Engine.
 
     Returns:
         Connection: A new SQLAlchemy connection to the database.
@@ -242,14 +231,15 @@ def connect() -> Connection:
     Note:
         The caller is responsible for closing the connection when done,
         preferably using a context manager:
-        >>> with connect() as conn:
+        >>> with connect(storage) as conn:
         ...     conn.execute(...)
     """
-    return _ensure_engine().connect()
+    return storage.connect()
 
 
 # Minimal public API
 __all__ = [
+    "Storage",
     "init_db",
     "connect",
 ]

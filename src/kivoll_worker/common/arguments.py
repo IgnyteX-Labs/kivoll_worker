@@ -2,9 +2,8 @@
 Command-line argument parsing for kivoll_worker entry points.
 
 This module provides argument parsing helpers for each CLI entry point:
-- :func:`parse_manage_args` for ``kivoll-schedule``
+- :func:`parse_schedule_args` for ``kivoll-schedule``
 - :func:`parse_scrape_args` for ``kivoll-scrape``
-- :func:`parse_predict_args` for ``kivoll-predict`` (future use)
 
 Each parser adds the shared options ``--verbose``, ``--warn-only``, and
 ``--config-path`` before initializing configuration and error tracking.
@@ -18,8 +17,11 @@ Example::
 
 import argparse
 import logging
+import os
 
 from cliasi import cli
+
+from kivoll_worker import __version__
 
 # ---------------------------------------------------------------------------
 # Common Argument Handling
@@ -35,6 +37,11 @@ def _parse_common_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
     :returns: Parsed arguments namespace.
     :rtype: argparse.Namespace
     """
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+    )
     parser.add_argument(
         "--verbose",
         dest="verbose",
@@ -55,6 +62,44 @@ def _parse_common_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         action="store",
         default="data/config.json",
         help="Path to main config file (default: data/config.json)",
+    )
+    parser.add_argument(
+        "--db-host",
+        dest="db_host",
+        type=str,
+        default=None,
+        help="Database host URL (overrides environment variable DB_HOST)",
+    )
+    parser.add_argument(
+        "--worker-password",
+        dest="worker_password",
+        type=str,
+        default=None,
+        help="Worker user password "
+        "(overrides environment variable WORKER_APP_PASSWORD)",
+    )
+    parser.add_argument(
+        "--migrator-password",
+        dest="migrator_password",
+        type=str,
+        default=None,
+        help="Migrator user password "
+        "(overrides environment variable WORKER_MIGRATOR_PASSWORD)",
+    )
+    parser.add_argument(
+        "--scheduler-password",
+        dest="scheduler_password",
+        type=str,
+        default=None,
+        help="Scheduler password "
+        "(overrides environment variable SCHEDULER_DB_PASSWORD)",
+    )
+    parser.add_argument(
+        "--allow-insecure-defaults",
+        dest="allow_insecure_defaults",
+        action="store_true",
+        default=False,
+        help="Allow insecure defaults for required credentials.",
     )
 
     args = parser.parse_args()
@@ -79,6 +124,89 @@ def _parse_common_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
         else logging.INFO
     )
 
+    # Get variables from the environment
+    db_host = os.environ.get("DB_HOST")
+    scheduler_password = os.environ.get("SCHEDULER_DB_PASSWORD")
+    worker_password = os.environ.get("WORKER_APP_PASSWORD")
+    migrator_password = os.environ.get("WORKER_MIGRATOR_PASSWORD")
+
+    if args.db_host and (db_host_arg := args.db_host.strip()):
+        db_host = db_host_arg
+
+    if args.scheduler_password and (
+        scheduler_password_arg := args.scheduler_password.strip()
+    ):
+        scheduler_password = scheduler_password_arg
+
+    if args.worker_password and (worker_password_arg := args.worker_password.strip()):
+        worker_password = worker_password_arg
+
+    if args.migrator_password and (
+        migrator_password_arg := args.migrator_password.strip()
+    ):
+        migrator_password = migrator_password_arg
+
+    # Validate and set defaults for required credentials
+    credentials = {
+        "db_host": (db_host, "DB_HOST", "localhost:5432"),
+        "scheduler_password": (
+            scheduler_password,
+            "SCHEDULER_DB_PASSWORD",
+            "schedulerpass",
+        ),
+        "worker_password": (
+            worker_password,
+            "WORKER_APP_PASSWORD",
+            "workerpass",
+        ),
+        "migrator_password": (
+            migrator_password,
+            "WORKER_MIGRATOR_PASSWORD",
+            "workermigratorpass",
+        ),
+    }
+
+    for var_name, (value, env_var, default) in credentials.items():
+        # Check if value is None, empty, or whitespace-only
+        is_empty = value is None or (isinstance(value, str) and not value.strip())
+
+        if is_empty:
+            if env_var == "DB_HOST":
+                cli.warn(f"{env_var} is not set. Using default value '{default}'.")
+                args.__setattr__(var_name, default)
+                continue
+            if args.allow_insecure_defaults:
+                cli.warn(f"{env_var} is not set. Using default value '{default}'.")
+                args.__setattr__(var_name, default)
+                continue
+            cli.fail(
+                f"{env_var} is not set. Will use default value '{default}',"
+                " which is unsafe and will not run."
+            )
+            cli.fail(
+                "Please set a secure password in .env or pass "
+                "--allow-insecure-defaults to continue."
+            )
+            args.__setattr__(var_name, default)
+            raise SystemExit(1)
+        elif value == default and env_var != "DB_HOST":
+            if args.allow_insecure_defaults:
+                cli.warn(f"{env_var} is set to the default value '{default}'.")
+                args.__setattr__(var_name, default)
+                continue
+            cli.fail(
+                f"{env_var} is set to the default value '{default}'."
+                " This is unsafe - the program will not run."
+            )
+            cli.fail(
+                "Please set a secure password in .env or pass "
+                "--allow-insecure-defaults to continue."
+            )
+            raise SystemExit(1)
+        else:
+            # Use the actual value (already stripped if it came from CLI args)
+            args.__setattr__(var_name, value)
+
     return args
 
 
@@ -87,7 +215,7 @@ def _parse_common_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
 # ---------------------------------------------------------------------------
 
 
-def parse_manage_args() -> argparse.Namespace:
+def parse_schedule_args() -> argparse.Namespace:
     """
     Parse arguments for the ``kivoll-schedule`` entry point.
 
@@ -149,41 +277,5 @@ def parse_scrape_args() -> argparse.Namespace:
         action="store_true",
         default=False,
         help="List available targets and their respective open hours",
-    )
-    return _parse_common_args(parser)
-
-
-def parse_predict_args() -> argparse.Namespace:
-    """
-    Parse arguments for the ``kivoll-predict`` entry point.
-
-    Predict-specific arguments:
-    - ``--model``: Path to the trained model file.
-    - ``--input``: Path to input data for prediction.
-
-    :returns: Parsed arguments including predict-specific options.
-    :rtype: argparse.Namespace
-
-    .. note::
-        This parser currently serves as a placeholder for future
-        ML functionality and may gain additional options later.
-    """
-    parser = argparse.ArgumentParser(
-        prog="kivoll-predict",
-        description="Run prediction using the (future) neural network model",
-    )
-    parser.add_argument(
-        "--model",
-        dest="model",
-        type=str,
-        default=None,
-        help="Path to model file to use for prediction",
-    )
-    parser.add_argument(
-        "--input",
-        dest="input",
-        type=str,
-        default=None,
-        help="Path to input data file (CSV/JSON) to predict on",
     )
     return _parse_common_args(parser)

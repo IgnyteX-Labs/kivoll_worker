@@ -31,7 +31,6 @@ The ``kivoll_worker`` container requires access to a PostgreSQL database
 ### Environment Variables
 
 - `DB_HOST`: The database host (default: `localhost:5432`)
-- `DB_DRIVER`: The database driver (default: `postgresql`)
 - `WORKER_APP_PASSWORD`: Password for the worker application (``rw``)
 - `WORKER_MIGRATOR_PASSWORD`: Username for the worker migrator (``DDL``)
 - `SCHEDULER_DB_PASSWORD`: Username for the scheduler (``DDL``)

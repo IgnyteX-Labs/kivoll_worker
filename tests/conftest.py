@@ -1,25 +1,19 @@
 import os
 import time
 from collections.abc import Generator
-from pathlib import Path
 from typing import Any
+from urllib.parse import quote_plus
 
 import psycopg
 import pytest
-from dotenv import load_dotenv
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from testcontainers.core.container import DockerContainer
 
-# Load test environment variables
-TEST_ENV_PATH = Path(__file__).parent.parent / ".env"
-load_dotenv(TEST_ENV_PATH)
-
 
 @pytest.fixture(scope="session")
 def test_env() -> dict[str, str]:
-    """Load and return test environment variables."""
-    load_dotenv(TEST_ENV_PATH)
+    """Read test environment variables (with defaults) and return them as a dict."""
     return {
         "POSTGRES_USER": os.getenv("POSTGRES_USER", "testadmin"),
         "POSTGRES_PASSWORD": os.getenv("POSTGRES_PASSWORD", "testadminpass"),
@@ -67,9 +61,11 @@ def db_engine(
     host = test_db.get_container_host_ip()
     port = int(test_db.get_exposed_port(5432))
 
+    user = quote_plus(test_env["POSTGRES_USER"])
+    password = quote_plus(test_env["POSTGRES_PASSWORD"])
     url = (
         f"postgresql+psycopg://"
-        f"{test_env['POSTGRES_USER']}:{test_env['POSTGRES_PASSWORD']}"
+        f"{user}:{password}"
         f"@{host}:{port}/{test_env['POSTGRES_DB']}"
     )
 
@@ -243,5 +239,6 @@ def mock_scraper_get_tz():
 def mock_scraper_init_db():
     from unittest.mock import patch
 
-    with patch("kivoll_worker.scraper.init_db", lambda: None):
+    dummy_storage = object()
+    with patch("kivoll_worker.scraper.init_db", lambda args: dummy_storage):
         yield
