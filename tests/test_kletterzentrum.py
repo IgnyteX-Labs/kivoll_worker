@@ -152,7 +152,7 @@ def test_kletterzentrum_empty_html_response(
     ):
         result = kletterzentrum.kletterzentrum(args, mock_conn)
 
-    assert result is True
+    assert result
     # Verify warning was issued about empty HTML
     assert len(dummy_cli.warned) > 0
     assert any("Received empty HTML" in msg for msg in dummy_cli.warned)

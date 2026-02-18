@@ -275,6 +275,7 @@ def kletterzentrum(args: Namespace, connection: Connection) -> bool:
                 "kletterzentrum:fetch:empty_html",
                 False,
             )
+            return False
         else:
             html = resp
         try:
