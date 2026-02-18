@@ -199,5 +199,6 @@ def test_container_version_matches_project(built_db_image: BuiltImage):
 
     # Compare with project version
     assert container_version == __version__, (
-        f"Container version '{container_version}' does not match project version '{__version__}'"
+        f"Container version '{container_version}' "
+        f"does not match project version '{__version__}'"
     )
