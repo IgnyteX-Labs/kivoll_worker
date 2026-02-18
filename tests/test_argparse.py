@@ -133,6 +133,11 @@ def test_parse_scrape_args_version(monkeypatch, capsys, set_valid_credentials):
     assert __version__ in captured.out
 
 
+def test_version_is_not_unknown():
+    """Test that setuptools_scm sets the version correctly"""
+    assert __version__ != "0+unknown"
+
+
 # ---------------------------------------------------------------------------
 # Credentials and Environment Variable Tests
 # ---------------------------------------------------------------------------
