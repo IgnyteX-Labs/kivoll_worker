@@ -14,6 +14,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock README.md healthcheck.sh LICENSE ./
 COPY src ./src
 COPY .git ./.git
+COPY .gitignore ./.gitignore
 
 RUN chmod +x healthcheck.sh
 RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv,sharing=locked \
