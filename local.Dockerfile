@@ -30,6 +30,12 @@ HEALTHCHECK --interval=1m --timeout=10s --retries=3 CMD ["/app/healthcheck.sh"]
 RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv,sharing=locked \
     uv sync --no-dev --locked --no-install-project
 
+RUN groupadd --system appuser && \
+    useradd --system --gid appuser --create-home appuser && \
+    chown -R appuser:appuser /app
+
+USER appuser
+
 # .git is mounted read-only at runtime for version detection
 CMD [ "uv", "run", "kivoll-schedule", "--verbose" ]
 

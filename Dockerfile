@@ -34,6 +34,12 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --system /tmp/*.whl && \
     rm -rf /tmp/*.whl
 
+RUN groupadd --system appuser && \
+    useradd --system --gid appuser --create-home appuser && \
+    chown -R appuser:appuser /app
+
+USER appuser
+
 HEALTHCHECK --interval=1m --timeout=10s --retries=3 CMD ["/app/healthcheck.sh"]
 
 CMD [ "uv", "run", "kivoll-schedule", "--verbose" ]
