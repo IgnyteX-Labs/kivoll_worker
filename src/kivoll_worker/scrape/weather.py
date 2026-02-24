@@ -18,7 +18,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from ..common.config import config
 from ..common.failure import log_error
-from .session import create_cached_scrape_session
+from .session import DEFAULT_TIMEOUT, create_cached_scrape_session
 
 cli: Cliasi = Cliasi("uninitialized")
 
@@ -173,10 +173,10 @@ def weather(connection: Connection) -> bool:
         openmeteo = openmeteo_requests.Client(session=openmeteo_session)
 
         try:
-            responses = openmeteo.weather_api(url, parameters, timeout=30)
+            responses = openmeteo.weather_api(url, parameters)
         except niquests.exceptions.Timeout as e:
             cli.fail(
-                "Request timed out after 30 seconds!",
+                f"Request timed out after {DEFAULT_TIMEOUT} seconds!",
                 messages_stay_in_one_line=False,
             )
             log_error(e, "weather:fetch:timeout", False)

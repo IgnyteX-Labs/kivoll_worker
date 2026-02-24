@@ -313,8 +313,8 @@ def test_kletterzentrum_timeout(
 
     assert result is False
     assert len(dummy_cli.failed) > 0 and "timed out" in dummy_cli.failed[0]
-    # Verify the timeout parameter was passed to session.get
+    # Verify session.get was called (without an explicit timeout kwarg — timeout is
+    # now configured on the session object via set_timeout_property)
     mock_session.get.assert_called_once()
     call_kwargs = mock_session.get.call_args[1]
-    assert "timeout" in call_kwargs
-    assert call_kwargs["timeout"] == 30
+    assert "timeout" not in call_kwargs

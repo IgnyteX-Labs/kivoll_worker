@@ -20,7 +20,7 @@ from .. import __short_version__
 from ..common import config
 from ..common.config import get_tz
 from ..common.failure import log_error
-from .session import create_scrape_session
+from .session import DEFAULT_TIMEOUT, create_scrape_session
 
 cli: Cliasi = Cliasi("uninitialized")
 
@@ -248,13 +248,13 @@ def kletterzentrum(args: Namespace, connection: Connection) -> bool:
             f"Fetching KI occupancy at {url}", verbosity=logging.DEBUG
         )
         try:
-            response = session.get(url, headers=headers, timeout=30)
+            response = session.get(url, headers=headers)
             task.update("Fetch complete, checking response") if task else None
             response.raise_for_status()
             resp = response.text
         except niquests.exceptions.Timeout as e:
             cli.fail(
-                "Request timed out after 30 seconds!",
+                f"Request timed out after {DEFAULT_TIMEOUT} seconds!",
                 messages_stay_in_one_line=False,
             )
             log_error(e, "kletterzentrum:fetch:timeout", False)
