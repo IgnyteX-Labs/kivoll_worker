@@ -2,7 +2,7 @@ import threading
 import time
 from collections.abc import Generator
 from contextlib import contextmanager
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer, ThreadingHTTPServer
 
 import niquests
 import pytest
@@ -21,7 +21,13 @@ def _disable_retries(s: niquests.Session) -> None:
 
 @contextmanager
 def _slow_server() -> Generator[int, None, None]:
-    """Start an HTTP server that sleeps 10 s before responding; yield the port."""
+    """Start an HTTP server that sleeps before responding; yield the port.
+
+    Uses ``ThreadingHTTPServer`` so each request runs in its own thread and
+    ``serve_forever()``'s polling loop stays unblocked. Combined with
+    ``daemon_threads = True``, ``server.shutdown()`` returns immediately even
+    while a handler is still sleeping, keeping test teardown fast.
+    """
 
     class _SlowHandler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:  # pragma: no cover - exercised by integration test
@@ -33,7 +39,8 @@ def _slow_server() -> Generator[int, None, None]:
         def log_message(self, format, *args):
             return
 
-    server = HTTPServer(("", 0), _SlowHandler)
+    server = ThreadingHTTPServer(("", 0), _SlowHandler)
+    server.daemon_threads = True  # don't let sleeping handler threads block teardown
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
