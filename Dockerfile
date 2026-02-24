@@ -56,7 +56,7 @@ RUN chmod +x healthcheck.sh
 # Install only the project package itself into the pre-populated venv.
 # --no-deps means zero downloads: uv just lays down the package files & scripts.
 RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv,sharing=locked \
-    uv pip install --python /app/.venv --no-deps /tmp/dist/*.whl \
+    uv pip install --no-deps /tmp/dist/*.whl \
     && rm -rf /tmp/dist
 
 HEALTHCHECK --interval=1m --timeout=10s --retries=3 CMD ["/app/healthcheck.sh"]
