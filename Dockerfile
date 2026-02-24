@@ -1,13 +1,28 @@
-# ---- build kivoll_worker ----
+# ---- Stage 1: Resolve & pre-install all runtime dependencies ----
+# This layer is invalidated only when pyproject.toml / uv.lock change,
+# so repeat builds that only touch source files skip all dependency work.
+FROM ghcr.io/astral-sh/uv:python3.14-trixie-slim AS deps
 
-# ---- Builder ----
+ENV UV_NO_DEV=1 \
+    UV_LINK_MODE=copy
+
+WORKDIR /app
+
+# Copy only the dependency manifests (and files referenced by pyproject.toml).
+# The project source is intentionally excluded here.
+COPY pyproject.toml uv.lock README.md LICENSE ./
+
+RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv,sharing=locked \
+    uv sync --frozen --no-install-project
+
+
+# ---- Stage 2: Build the distributable wheel ----
 FROM ghcr.io/astral-sh/uv:python3.14-trixie-slim AS builder
 
-LABEL authors="IgnyteX-Labs"
-ENV UV_NO_DEV=1
-ENV UV_LINK_MODE=copy
-
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+# git is required by setuptools-scm for SCM-based version detection
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -16,24 +31,35 @@ COPY . .
 RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv,sharing=locked \
     uv build --wheel
 
-RUN chmod +x healthcheck.sh
 
-# ---- Runtime ----
+# ---- Stage 3: Runtime ----
 FROM ghcr.io/astral-sh/uv:python3.14-trixie-slim
 
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-ENV UV_LINK_MODE=copy
+LABEL authors="IgnyteX-Labs"
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_NO_DEV=1 \
+    UV_LINK_MODE=copy \
+    PATH="/app/.venv/bin:$PATH"
+# Expose the pre-built venv so entry points are available without a prefix
 
 WORKDIR /app
 
-COPY --from=builder /app/dist/*.whl /tmp
-COPY --from=builder /app/healthcheck.sh /app/healthcheck.sh
+# All dependencies are already installed — no network access needed for them
+COPY --from=deps /app/.venv /app/.venv
+COPY --from=builder /app/dist /tmp/dist
+COPY --from=builder /app/healthcheck.sh ./healthcheck.sh
 
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --system /tmp/*.whl && \
-    rm -rf /tmp/*.whl
+RUN chmod +x healthcheck.sh
+
+# Install only the project package itself into the pre-populated venv.
+# --no-deps means zero downloads: uv just lays down the package files & scripts.
+RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv,sharing=locked \
+    uv pip install --no-deps /tmp/dist/*.whl \
+    && rm -rf /tmp/dist
 
 HEALTHCHECK --interval=1m --timeout=10s --retries=3 CMD ["/app/healthcheck.sh"]
 
-CMD [ "uv", "run", "kivoll-schedule", "--verbose" ]
+# Invoke the entry point directly from the venv — no `uv run` overhead
+CMD ["kivoll-schedule", "--verbose"]
