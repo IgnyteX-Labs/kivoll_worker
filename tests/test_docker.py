@@ -43,7 +43,7 @@ def test_dockerfile_general(built_db_image):
     config = data[0]["Config"]
 
     # Check CMD
-    assert config["Cmd"] == ["uv", "run", "kivoll-schedule", "--verbose"]
+    assert config["Cmd"] == ["kivoll-schedule", "--verbose"]
 
     # Check healthcheck
     healthcheck = config.get("Healthcheck")
