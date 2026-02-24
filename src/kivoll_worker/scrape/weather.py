@@ -191,7 +191,6 @@ def weather(connection: Connection) -> bool:
         finally:
             task.stop() if task else None
 
-    task.stop()
     cli.success("Weather data fetched successfully!", verbosity=logging.DEBUG)
 
     cli.log("Writing to database")
