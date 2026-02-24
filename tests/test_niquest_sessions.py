@@ -1,19 +1,73 @@
 import threading
+import time
 from collections.abc import Generator
 from contextlib import contextmanager
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer, ThreadingHTTPServer
 
 import niquests
 import pytest
+from niquests.adapters import HTTPAdapter
 
 from kivoll_worker.scrape import session as session_mod
 
 
-def test_default_session_retries_configuration() -> None:
-    """Ensure create_scrape_session sets a RetryConfiguration with the expected values."""
-    s = session_mod.create_scrape_session()
+def _disable_retries(s: niquests.Session) -> None:
+    """Remount adapters with max_retries=0 so timeouts surface immediately as
+    ``niquests.exceptions.Timeout`` instead of being wrapped in ``ConnectionError``
+    after the retry budget is exhausted."""
+    s.mount("http://", HTTPAdapter(max_retries=0))
+    s.mount("https://", HTTPAdapter(max_retries=0))
+
+
+@contextmanager
+def _slow_server() -> Generator[int, None, None]:
+    """Start an HTTP server that sleeps before responding; yield the port.
+
+    Uses ``ThreadingHTTPServer`` so each request runs in its own thread and
+    ``serve_forever()``'s polling loop stays unblocked. Combined with
+    ``daemon_threads = True``, ``server.shutdown()`` returns immediately even
+    while a handler is still sleeping, keeping test teardown fast.
+    """
+
+    class _SlowHandler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # pragma: no cover - exercised by integration test
+            time.sleep(10.0)
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"too late")
+
+        def log_message(self, format, *args):
+            return
+
+    server = ThreadingHTTPServer(("", 0), _SlowHandler)
+    server.daemon_threads = True  # don't let sleeping handler threads block teardown
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield server.server_address[1]
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=1)
+
+
+# ---------------------------------------------------------------------------
+# Unit tests – session configuration
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "make_session",
+    [
+        lambda _: session_mod.create_scrape_session(),
+        lambda tmp: session_mod.create_cached_scrape_session(cache_expire_after=60),
+    ],
+    ids=["plain", "cached"],
+)
+def test_session_retries_configuration(tmp_path, make_session) -> None:
+    """Both session factories configure a RetryConfiguration with the expected values."""
+    s = make_session(tmp_path)
     assert isinstance(s.retries, niquests.RetryConfiguration)
-    # Compare the important fields we set in set_retries_property to ensure the configuration is correct
     assert s.retries.total == 3
     assert s.retries.backoff_factor == 0
     assert s.retries.status_forcelist == [429, 500, 502, 503, 504]
@@ -21,15 +75,30 @@ def test_default_session_retries_configuration() -> None:
     assert s.retries.respect_retry_after_header is True
 
 
-def test_cached_session_retries_configuration() -> None:
-    """Ensure create_cached_scrape_session sets the same RetryConfiguration."""
-    cs = session_mod.create_cached_scrape_session(cache_expire_after=60)
-    assert isinstance(cs.retries, niquests.RetryConfiguration)
-    assert cs.retries.total == 3
-    assert cs.retries.backoff_factor == 0
-    assert cs.retries.status_forcelist == [429, 500, 502, 503, 504]
-    assert set(cs.retries.allowed_methods) == {"GET", "HEAD", "OPTIONS"}
-    assert cs.retries.respect_retry_after_header is True
+@pytest.mark.parametrize(
+    "make_session",
+    [
+        lambda _: session_mod.create_scrape_session(),
+        lambda tmp: session_mod.create_cached_scrape_session(cache_expire_after=60),
+    ],
+    ids=["plain", "cached"],
+)
+def test_session_has_timeout(tmp_path, make_session) -> None:
+    """Both session factories set session.timeout to DEFAULT_TIMEOUT."""
+    s = make_session(tmp_path)
+    assert s.timeout == session_mod.DEFAULT_TIMEOUT
+
+
+def test_set_timeout_property_sets_default_timeout() -> None:
+    """set_timeout_property correctly sets session.timeout on a bare session."""
+    s = niquests.Session()
+    session_mod.set_timeout_property(s)
+    assert s.timeout == session_mod.DEFAULT_TIMEOUT
+
+
+# ---------------------------------------------------------------------------
+# Shared server infrastructure for integration tests
+# ---------------------------------------------------------------------------
 
 
 class _ControlledHandler(BaseHTTPRequestHandler):
@@ -99,6 +168,11 @@ def _test_server(responses: list[tuple]) -> Generator[tuple[str, int], None, Non
         thread.join(timeout=1)
 
 
+# ---------------------------------------------------------------------------
+# Integration tests
+# ---------------------------------------------------------------------------
+
+
 @pytest.mark.slow
 @pytest.mark.network
 def test_retry_and_cache_integration(tmp_path) -> None:
@@ -108,8 +182,6 @@ def test_retry_and_cache_integration(tmp_path) -> None:
     eventually return the 200 body. Then a cached session should return a cached
     response even if the server later returns 500.
     """
-    from kivoll_worker.scrape import session as session_mod
-
     # Prepare server: two 500 responses, then a 200 response
     responses = [
         (500, "server error 1", {}),
@@ -163,8 +235,6 @@ def test_retry_stops_after_max_attempts() -> None:
     when the server keeps returning 500 errors, then raise a RetryError.
     This proves the retry mechanism is finite and won't loop forever.
     """
-    from kivoll_worker.scrape import session as session_mod
-
     # Prepare server to return many 500 errors (more than the retry limit)
     # We'll return 10 errors to ensure we have more than enough to exceed the limit
     responses = [(500, f"server error {i}", {}) for i in range(10)]
@@ -189,14 +259,44 @@ def test_retry_stops_after_max_attempts() -> None:
             )
         except niquests.exceptions.RetryError:
             pass
+
         # CRITICAL: Verify exactly 4 requests were made (1 initial + 3 retries)
         # This proves the retry mechanism stops and doesn't continue infinitely
         assert len(_ControlledHandler.recorded_paths) == 4, (
             f"Expected exactly 4 requests (1 initial + 3 retries), "
             f"but got {len(_ControlledHandler.recorded_paths)}: {_ControlledHandler.recorded_paths}"
         )
-
-        # All paths should be the same (our test endpoint)
         assert all(
             path == "/test-retry-limit" for path in _ControlledHandler.recorded_paths
         )
+
+
+@pytest.mark.slow
+@pytest.mark.network
+@pytest.mark.parametrize(
+    "make_session",
+    [
+        lambda tmp_path: session_mod.create_scrape_session(),
+        lambda tmp_path: session_mod.create_cached_scrape_session(
+            cache_expire_after=60, cache_name=str(tmp_path / "cache")
+        ),
+    ],
+    ids=["plain", "cached"],
+)
+def test_session_times_out_when_server_is_slow(tmp_path, make_session) -> None:
+    """Verify that session.timeout is enforced for both session types.
+
+    The timeout is overridden to a very small value so the test completes quickly.
+    Retries are disabled so the first read-timeout surfaces immediately as
+    ``niquests.exceptions.Timeout`` rather than being wrapped in ``ConnectionError``
+    after the retry budget is exhausted.
+    """
+    SHORT_TIMEOUT = 0.05  # 50 ms
+
+    with _slow_server() as port:
+        s = make_session(tmp_path)
+        s.timeout = SHORT_TIMEOUT
+        _disable_retries(s)
+
+        with pytest.raises(niquests.exceptions.Timeout):
+            s.get(f"http://127.0.0.1:{port}/slow")

@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from datetime import timedelta
 from typing import Any, Literal
 
+import niquests
 import openmeteo_requests
 import sqlalchemy.sql.dml
 from cliasi import Cliasi
@@ -17,7 +18,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from ..common.config import config
 from ..common.failure import log_error
-from .session import create_cached_scrape_session
+from .session import DEFAULT_TIMEOUT, create_cached_scrape_session
 
 cli: Cliasi = Cliasi("uninitialized")
 
@@ -173,16 +174,23 @@ def weather(connection: Connection) -> bool:
 
         try:
             responses = openmeteo.weather_api(url, parameters)
+        except niquests.exceptions.Timeout as e:
+            cli.fail(
+                f"Request timed out after {DEFAULT_TIMEOUT} seconds!",
+                messages_stay_in_one_line=False,
+            )
+            log_error(e, "weather:fetch:timeout", False)
+            return False
         except OpenMeteoRequestsError as e:
-            task.stop()
             cli.fail(
                 "Could not fetch weather data! (HTTPError)",
                 messages_stay_in_one_line=False,
             )
             log_error(e, "weather:config:request", False)
             return False
+        finally:
+            task.stop() if task else None
 
-    task.stop()
     cli.success("Weather data fetched successfully!", verbosity=logging.DEBUG)
 
     cli.log("Writing to database")

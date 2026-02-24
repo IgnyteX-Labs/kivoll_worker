@@ -626,13 +626,13 @@ def test_weather_success_inserts_all_resolutions(db_engine, monkeypatch):
     resp = _FakeResponse(48.0, 11.0, current=current, hourly=hourly, daily=daily)
 
     # Monkeypatch the API client to return our response
-    def fake_api(url, params):
+    def fake_api(url, params, **kwargs):
         return [resp]
 
     monkeypatch.setattr(
         openmeteo_requests.Client,
         "weather_api",
-        lambda self, url, params: fake_api(url, params),
+        lambda self, url, params, **kwargs: fake_api(url, params, **kwargs),
     )
 
     # Monkeypatch config() to return our cfg
@@ -702,7 +702,9 @@ def test_weather_handles_missing_subobjects_and_returns_false(
     # Response where Current/Hourly/Daily return None despite being requested
     resp = _FakeResponse(48.0, 11.0, current=None, hourly=None, daily=None)
     monkeypatch.setattr(
-        openmeteo_requests.Client, "weather_api", lambda self, url, params: [resp]
+        openmeteo_requests.Client,
+        "weather_api",
+        lambda self, url, params, **kwargs: [resp],
     )
 
     with session.connection() as conn:
@@ -748,13 +750,54 @@ def test_weather_request_error_returns_false(monkeypatch) -> None:
     monkeypatch.setattr(
         openmeteo_requests.Client,
         "weather_api",
-        lambda self, url, params: (_ for _ in ()).throw(
+        lambda self, url, params, **kwargs: (_ for _ in ()).throw(
             openmeteo_requests.OpenMeteoRequestsError("http fail")
         ),
     )
 
     result = weather.weather(None)
     assert result is False
+
+
+@pytest.mark.slow
+@pytest.mark.database
+def test_weather_timeout_returns_false(monkeypatch, dummy_cli) -> None:
+    """Test handling of request timeout errors during weather fetch."""
+    import niquests
+
+    # Valid-ish config
+    cfg = {
+        "modules": {
+            "weather": {
+                "url": "http://example",
+                "parameters": {"hourly": ["temperature_2m"]},
+                "locations": {
+                    "loc": {"enabled": True, "latitude": 48.0, "longitude": 11.0}
+                },
+            }
+        }
+    }
+    monkeypatch.setattr(weather, "config", lambda: cfg)
+    monkeypatch.setattr(weather, "Cliasi", lambda name: dummy_cli)
+
+    # Ensure column cache contains hourly parameter
+    weather._columns_cache.clear()
+    weather._columns_cache["hourly"] = frozenset({"temperature_2m"})
+
+    # API raises timeout error
+    monkeypatch.setattr(
+        openmeteo_requests.Client,
+        "weather_api",
+        lambda self, url, params, **kwargs: (_ for _ in ()).throw(
+            niquests.exceptions.Timeout("Request timed out")
+        ),
+    )
+
+    result = weather.weather(None)
+    assert result is False
+    # Verify the timeout error message was logged
+    assert len(dummy_cli.failed) > 0
+    assert any("timed out" in msg for msg in dummy_cli.failed)
 
 
 @pytest.mark.slow
@@ -783,7 +826,9 @@ def test_weather_returns_false_on_sqlalchemy_error(monkeypatch, dummy_cli) -> No
     resp = _FakeResponse(48.0, 11.0, current=current, hourly=None, daily=None)
 
     monkeypatch.setattr(
-        openmeteo_requests.Client, "weather_api", lambda self, url, params: [resp]
+        openmeteo_requests.Client,
+        "weather_api",
+        lambda self, url, params, **kwargs: [resp],
     )
 
     captured: list[tuple[Exception, str, bool]] = []
