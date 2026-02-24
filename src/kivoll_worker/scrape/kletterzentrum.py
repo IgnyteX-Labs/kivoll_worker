@@ -253,7 +253,6 @@ def kletterzentrum(args: Namespace, connection: Connection) -> bool:
             response.raise_for_status()
             resp = response.text
         except niquests.exceptions.Timeout as e:
-            task.stop() if task else None
             cli.fail(
                 "Request timed out after 30 seconds!",
                 messages_stay_in_one_line=False,
@@ -261,7 +260,6 @@ def kletterzentrum(args: Namespace, connection: Connection) -> bool:
             log_error(e, "kletterzentrum:fetch:timeout", False)
             return False
         except niquests.exceptions.HTTPError as e:
-            task.stop() if task else None
             cli.fail(
                 "Could not fetch data for Kletterzentrum!",
                 messages_stay_in_one_line=False,
@@ -270,9 +268,9 @@ def kletterzentrum(args: Namespace, connection: Connection) -> bool:
             return False
 
         finally:
+            task.stop() if task else None
             session.close()
 
-        task.stop() if task else None
         cli.success("Kletterzentrum website fetched", logging.DEBUG)
         cli.info("Writing html to data/last_request.html")
         html = ""

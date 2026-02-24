@@ -175,7 +175,6 @@ def weather(connection: Connection) -> bool:
         try:
             responses = openmeteo.weather_api(url, parameters, timeout=30)
         except niquests.exceptions.Timeout as e:
-            task.stop() if task else None
             cli.fail(
                 "Request timed out after 30 seconds!",
                 messages_stay_in_one_line=False,
@@ -183,13 +182,14 @@ def weather(connection: Connection) -> bool:
             log_error(e, "weather:fetch:timeout", False)
             return False
         except OpenMeteoRequestsError as e:
-            task.stop()
             cli.fail(
                 "Could not fetch weather data! (HTTPError)",
                 messages_stay_in_one_line=False,
             )
             log_error(e, "weather:config:request", False)
             return False
+        finally:
+            task.stop() if task else None
 
     task.stop()
     cli.success("Weather data fetched successfully!", verbosity=logging.DEBUG)
