@@ -85,6 +85,10 @@ environment variables set from ``.env``.
     The code will be mounted inside the container, so any changes you make to the code
     will be reflected inside the container instantly.
 
+.. warning::
+    The local.Dockerfile will sync the dependencies in a build step so if you add
+    dependencies, you will need to rebuild the image to add them to the cache.
+
 If you want to run the container in detached mode, you can use
 
 .. code-block:: bash
