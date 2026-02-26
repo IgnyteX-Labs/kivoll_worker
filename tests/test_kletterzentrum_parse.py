@@ -4,6 +4,7 @@ from kivoll_worker.scrape import kletterzentrum
 
 
 def test_parse_html_extracts_sections(mock_cli) -> None:
+    """_parse_html() correctly extracts overall, section percentages, and sector counts."""
     html = """
     <html>
       <body>
@@ -31,6 +32,7 @@ def test_parse_html_extracts_sections(mock_cli) -> None:
 
 
 def test_parse_html_css_fallback_for_sections(mock_cli) -> None:
+    """_parse_html() falls back to CSS height values when data-percentage attributes are absent."""
     html = """
     <html>
       <body>
@@ -49,6 +51,7 @@ def test_parse_html_css_fallback_for_sections(mock_cli) -> None:
 
 
 def test_cache_html(mock_cli, monkeypatch, tmp_path) -> None:
+    """_cache_html() writes the HTML string to last_request.html inside the data directory."""
     # Mock config.data_dir to return tmp_path
     from unittest.mock import Mock
 
@@ -63,6 +66,7 @@ def test_cache_html(mock_cli, monkeypatch, tmp_path) -> None:
 
 
 def test_load_cached_html(mock_cli, monkeypatch, tmp_path) -> None:
+    """_load_cached_html() reads and returns the content of the cached HTML file."""
     # Mock config.data_dir to return tmp_path
     from unittest.mock import Mock
 
@@ -79,6 +83,7 @@ def test_load_cached_html(mock_cli, monkeypatch, tmp_path) -> None:
 
 
 def test_load_cached_html_file_not_found(mock_cli, monkeypatch, tmp_path) -> None:
+    """_load_cached_html() raises FileNotFoundError when no cached file exists."""
     # Mock config.data_dir to return tmp_path
     from unittest.mock import Mock
 
@@ -92,6 +97,7 @@ def test_load_cached_html_file_not_found(mock_cli, monkeypatch, tmp_path) -> Non
 
 
 def test_parse_html_overall_parsing_error(mock_cli, monkeypatch) -> None:
+    """_parse_html() returns None for overall when the percentage cannot be extracted."""
     monkeypatch.setattr(kletterzentrum, "log_error", lambda *args, **kwargs: None)
     html = """
     <html>
@@ -105,6 +111,7 @@ def test_parse_html_overall_parsing_error(mock_cli, monkeypatch) -> None:
 
 
 def test_parse_html_sections_parsing_error(mock_cli, monkeypatch) -> None:
+    """_parse_html() returns None for a section whose data-percentage value is invalid."""
     monkeypatch.setattr(kletterzentrum, "log_error", lambda *args, **kwargs: None)
     html = """
     <html>
@@ -123,6 +130,7 @@ def test_parse_html_sections_parsing_error(mock_cli, monkeypatch) -> None:
 
 
 def test_parse_html_open_sectors_parsing_error(mock_cli, monkeypatch) -> None:
+    """_parse_html() returns None for open_sectors when the sector count cannot be parsed."""
     monkeypatch.setattr(kletterzentrum, "log_error", lambda *args, **kwargs: None)
     html = """
     <html>
@@ -141,6 +149,7 @@ def test_parse_html_open_sectors_parsing_error(mock_cli, monkeypatch) -> None:
 
 
 def test_parse_html_malformed_html(mock_cli, monkeypatch) -> None:
+    """_parse_html() returns all-None fields when given HTML with no recognisable structure."""
     monkeypatch.setattr(kletterzentrum, "log_error", lambda *args, **kwargs: None)
     html = "<html><body>Malformed</body></html>"
     parsed = kletterzentrum._parse_html(html)

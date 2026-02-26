@@ -27,6 +27,7 @@ class _DummyScheduler:
 
 
 def test_reconcile_jobs_adds_and_removes(monkeypatch) -> None:
+    """_reconcile_jobs() adds missing jobs, updates existing ones, and removes stale jobs."""
     desired = {
         "job-a": {"func": lambda: None, "trigger": "cron", "hour": "1", "minute": "0"},
         "job-b": {"func": lambda: None, "trigger": "interval", "seconds": 30},
