@@ -19,14 +19,15 @@ RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv,sharing=locked \
 # ---- Stage 2: Build the distributable wheel ----
 FROM ghcr.io/astral-sh/uv:python3.14-trixie-slim AS builder
 
-# git is required by setuptools-scm for SCM-based version detection
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends git \
-    && rm -rf /var/lib/apt/lists/*
+# VERSION is a build arg; SETUPTOOLS_SCM_PRETEND_VERSION lets setuptools-scm work without git.
+ARG VERSION
+ENV SETUPTOOLS_SCM_PRETEND_VERSION=${VERSION}
 
 WORKDIR /app
 
-COPY . .
+# uv.lock is intentionally omitted: `uv build` calls the build backend directly
+COPY pyproject.toml README.md LICENSE ./
+COPY src/ ./src/
 
 RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv,sharing=locked \
     uv build --wheel

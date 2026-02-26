@@ -12,9 +12,14 @@ from testcontainers.core.container import DockerContainer
 from testcontainers.core.network import Network
 
 from conftest import _build_container, _wait_for_db_ready
-from kivoll_worker import __version__
 
 DATABASE_IMG = "ghcr.io/ignytex-labs/kivoll_db:0.1.0"
+
+# Fixed sentinel version used when building the worker image for tests.
+# Using a constant keeps tests hermetic (independent of the local git state)
+# and validates that the VERSION build-arg is correctly propagated through
+# SETUPTOOLS_SCM_PRETEND_VERSION all the way to the installed package.
+TEST_VERSION = "0.0.0"
 
 
 @dataclass(frozen=True)
@@ -90,7 +95,15 @@ def built_db_image(
 ) -> Generator[BuiltImage, Any, None]:
     # Run docker build and record output; don't fail the fixture immediately.
     result = subprocess.run(
-        ["docker", "build", "-t", db_image_tag, str(BUILD_CONTEXT)],
+        [
+            "docker",
+            "build",
+            "--build-arg",
+            f"VERSION={TEST_VERSION}",
+            "-t",
+            db_image_tag,
+            str(BUILD_CONTEXT),
+        ],
         capture_output=True,
         text=True,
     )
@@ -169,22 +182,19 @@ def test_built_dockerfile(built_db_image: BuiltImage):
 @pytest.mark.slow
 @pytest.mark.integration
 def test_container_version_matches_project(built_db_image: BuiltImage):
-    """Test that the version output from the container matches the project version."""
+    """Test that the version baked into the image matches the TEST_VERSION build-arg.
+
+    This validates the full chain:
+      --build-arg VERSION=<ver>  →  SETUPTOOLS_SCM_PRETEND_VERSION  →  installed package
+    The entry-point is invoked directly from the venv (no `uv run` overhead)
+    because the runtime image does not have a project context for uv to resolve.
+    """
     if not built_db_image.ok:
         pytest.skip("Docker build failed; skipping version test")
 
-    # Run the container and execute the version command
+    # kivoll-scrape is on PATH via /app/.venv/bin (set in the Dockerfile).
     result = subprocess.run(
-        [
-            "docker",
-            "run",
-            "--rm",
-            built_db_image.tag,
-            "uv",
-            "run",
-            "kivoll-scrape",
-            "--version",
-        ],
+        ["docker", "run", "--rm", built_db_image.tag, "kivoll-scrape", "--version"],
         capture_output=True,
         text=True,
         timeout=30,
@@ -194,11 +204,10 @@ def test_container_version_matches_project(built_db_image: BuiltImage):
         f"Failed to get version from container: {result.stderr}"
     )
 
-    # Extract version from command output (typically "kivoll_worker <version>")
+    # Output is typically "kivoll_worker <version>"
     container_version = result.stdout.strip().split()[-1]
 
-    # Compare with project version
-    assert container_version == __version__, (
+    assert container_version == TEST_VERSION, (
         f"Container version '{container_version}' "
-        f"does not match project version '{__version__}'"
+        f"does not match expected build version '{TEST_VERSION}'"
     )
