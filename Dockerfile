@@ -19,8 +19,11 @@ RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv,sharing=locked \
 # ---- Stage 2: Build the distributable wheel ----
 FROM ghcr.io/astral-sh/uv:python3.14-trixie-slim AS builder
 
-# VERSION is a build arg
+# VERSION is a required build arg
 ARG VERSION
+RUN test -n "${VERSION}" || \
+    { echo "ERROR: VERSION build arg is required. Pass --build-arg VERSION=x.y.z" \
+    >&2; exit 1; }
 # SETUPTOOLS_SCM_PRETEND_VERSION lets setuptools-scm work without git.
 ENV SETUPTOOLS_SCM_PRETEND_VERSION=${VERSION}
 
