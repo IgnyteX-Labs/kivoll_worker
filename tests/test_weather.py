@@ -1,5 +1,6 @@
 # Ensure core common modules provide the module-level globals used at import time
 import pathlib
+from types import SimpleNamespace
 
 import openmeteo_requests
 import pytest
@@ -503,78 +504,37 @@ def test_insert_weather_data_handles_none_and_casting(db_engine) -> None:
 # ---------------------
 
 
-class _FakeVar:
-    def __init__(self, values):
-        self._values = values
-
-    def Value(self):
-        # scalar for Current
-        return self._values
-
-    def ValuesAsNumpy(self):
-        # return list-like for Hourly/Daily
-        return list(self._values)
+def _fake_current(scalars, observed_at):
+    """Fake Current block: each element in *scalars* is a single scalar value."""
+    _vars = [SimpleNamespace(Value=lambda v=v: v) for v in scalars]
+    return SimpleNamespace(
+        Time=lambda: observed_at,
+        Variables=lambda idx: _vars[idx] if 0 <= idx < len(_vars) else None,
+    )
 
 
-class _FakeCurrent:
-    def __init__(self, values, observed_at):
-        self._vars = [_FakeVar(v) for v in values]
-        self._time = observed_at
-
-    def Time(self):
-        return self._time
-
-    def Variables(self, idx):
-        if 0 <= idx < len(self._vars):
-            return self._vars[idx]
-        return None
-
-
-class _FakeSeries:
-    def __init__(self, values, start, end, interval):
-        self._values = values
-        self._start = start
-        self._end = end
-        self._interval = interval
-        self._vars = [_FakeVar(v) for v in values]
-
-    def Time(self):
-        return self._start
-
-    def TimeEnd(self):
-        return self._end
-
-    def Interval(self):
-        return self._interval
-
-    def Variables(self, idx):
-        if 0 <= idx < len(self._vars):
-            return self._vars[idx]
-        return None
+def _fake_series(arrays, start, end, interval):
+    """Fake Hourly/Daily block: each element in *arrays* is a list of values."""
+    _vars = [
+        SimpleNamespace(Values=lambda i, a=a: a[i], ValuesLength=lambda a=a: len(a))
+        for a in arrays
+    ]
+    return SimpleNamespace(
+        Time=lambda: start,
+        TimeEnd=lambda: end,
+        Interval=lambda: interval,
+        Variables=lambda idx: _vars[idx] if 0 <= idx < len(_vars) else None,
+    )
 
 
-class _FakeResponse:
-    def __init__(self, lat, lon, current=None, hourly=None, daily=None):
-        self._lat = lat
-        self._lon = lon
-        self._current = current
-        self._hourly = hourly
-        self._daily = daily
-
-    def Latitude(self):
-        return self._lat
-
-    def Longitude(self):
-        return self._lon
-
-    def Current(self):
-        return self._current
-
-    def Hourly(self):
-        return self._hourly
-
-    def Daily(self):
-        return self._daily
+def _fake_response(lat, lon, current=None, hourly=None, daily=None):
+    return SimpleNamespace(
+        Latitude=lambda: lat,
+        Longitude=lambda: lon,
+        Current=lambda: current,
+        Hourly=lambda: hourly,
+        Daily=lambda: daily,
+    )
 
 
 @pytest.mark.slow
@@ -617,13 +577,13 @@ def test_weather_success_inserts_all_resolutions(db_engine, monkeypatch):
 
     # Build a fake response that matches the location
     # Current: two scalar vars
-    current = _FakeCurrent([3.3, 1.2], observed_at=999)
+    current = _fake_current([3.3, 1.2], observed_at=999)
     # Hourly: one variable array for two timestamps
-    hourly = _FakeSeries([[10.0, 11.0]], start=1000, end=1002, interval=1)
+    hourly = _fake_series([[10.0, 11.0]], start=1000, end=1002, interval=1)
     # Daily: one variable array for two timestamps
-    daily = _FakeSeries([[0.5, 0.0]], start=2000, end=2002, interval=1)
+    daily = _fake_series([[0.5, 0.0]], start=2000, end=2002, interval=1)
 
-    resp = _FakeResponse(48.0, 11.0, current=current, hourly=hourly, daily=daily)
+    resp = _fake_response(48.0, 11.0, current=current, hourly=hourly, daily=daily)
 
     # Monkeypatch the API client to return our response
     def fake_api(url, params, **kwargs):
@@ -700,7 +660,7 @@ def test_weather_handles_missing_subobjects_and_returns_false(
     monkeypatch.setattr(weather, "config", lambda: cfg)
 
     # Response where Current/Hourly/Daily return None despite being requested
-    resp = _FakeResponse(48.0, 11.0, current=None, hourly=None, daily=None)
+    resp = _fake_response(48.0, 11.0, current=None, hourly=None, daily=None)
     monkeypatch.setattr(
         openmeteo_requests.Client,
         "weather_api",
@@ -822,8 +782,8 @@ def test_weather_returns_false_on_sqlalchemy_error(monkeypatch, dummy_cli) -> No
     monkeypatch.setattr(weather, "config", lambda: cfg)
     monkeypatch.setattr(weather, "Cliasi", lambda name: dummy_cli)
 
-    current = _FakeCurrent([3.3], observed_at=999)
-    resp = _FakeResponse(48.0, 11.0, current=current, hourly=None, daily=None)
+    current = _fake_current([3.3], observed_at=999)
+    resp = _fake_response(48.0, 11.0, current=current, hourly=None, daily=None)
 
     monkeypatch.setattr(
         openmeteo_requests.Client,

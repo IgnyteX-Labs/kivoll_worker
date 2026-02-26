@@ -279,7 +279,7 @@ def weather(connection: Connection) -> bool:
                     range(hourly.Time(), hourly.TimeEnd(), hourly.Interval())
                 )
                 hourly_arrays = [
-                    var.ValuesAsNumpy()
+                    [var.Values(i) for i in range(var.ValuesLength())]
                     for idx in range(len(valid_hourly))
                     if (var := hourly.Variables(idx)) is not None
                 ]
@@ -316,7 +316,7 @@ def weather(connection: Connection) -> bool:
                     range(daily.Time(), daily.TimeEnd(), daily.Interval())
                 )
                 daily_arrays = [
-                    var.ValuesAsNumpy()
+                    [var.Values(i) for i in range(var.ValuesLength())]
                     for idx in range(len(valid_daily))
                     if (var := daily.Variables(idx)) is not None
                 ]
@@ -491,7 +491,7 @@ def insert_weather_data(
     :param timestamps: List of Unix timestamps (forecast_time for hourly/daily,
                        fetched_at for current)
     :param param_names: List of parameter names (in order)
-    :param param_values: List of values or numpy arrays (same order as param_names)
+    :param param_values: List of values or lists (same order as param_names)
     :param fetched_at: When this data was fetched (required for hourly/daily,
                        used for current)
     :param observed_at: API's observation timestamp (only for current)
