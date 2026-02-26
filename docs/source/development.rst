@@ -17,8 +17,8 @@ Install dependencies with ``uv``
 
     uv sync
 
-.. error::
-    SQLite support was dropped in v0.1.1
+.. deprecated:: 0.1.1
+    SQLite support - you will need the kivoll_db container. (See below)
 
 
 Set up environment variables
@@ -32,10 +32,10 @@ under ``.env.example`` and adjust it to your needs.
     cp .env.example .env
     # Edit .env as needed
 
-Running the database
+Running kivoll_db
 ~~~~~~~~~~~~~~~~~~~~~
 Other parts of the kivoll project, such as the API server also require a running
-a database.
+the kivoll_db.
 
 The database you are about to start will be shared across all projects.
 
