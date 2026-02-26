@@ -179,9 +179,50 @@ def test_built_dockerfile(built_db_image: BuiltImage):
     assert built_db_image.stdout or built_db_image.stderr, "docker build output missing"
 
 
+@pytest.fixture(scope="session")
+def container_package_installed(built_db_image: BuiltImage) -> bool:
+    """Return True if kivoll_worker is importable inside the built image.
+
+    Skips automatically if the image build itself failed.
+    """
+    if not built_db_image.ok:
+        pytest.skip("Docker build failed; skipping package installation check")
+
+    result = subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            built_db_image.tag,
+            "python",
+            "-c",
+            "import kivoll_worker",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    return result.returncode == 0
+
+
 @pytest.mark.slow
 @pytest.mark.integration
-def test_container_version_matches_project(built_db_image: BuiltImage):
+def test_container_package_installed(
+    built_db_image: BuiltImage, container_package_installed: bool
+):
+    """Test that the kivoll_worker package is importable inside the container."""
+    assert container_package_installed, (
+        "kivoll_worker is not importable in the container — "
+        "the wheel may not have been installed correctly.\n"
+        f"Build stderr: {built_db_image.stderr}"
+    )
+
+
+@pytest.mark.slow
+@pytest.mark.integration
+def test_container_version_matches_project(
+    built_db_image: BuiltImage, container_package_installed: bool
+):
     """Test that the version baked into the image matches the TEST_VERSION build-arg.
 
     This validates the full chain:
@@ -191,6 +232,8 @@ def test_container_version_matches_project(built_db_image: BuiltImage):
     """
     if not built_db_image.ok:
         pytest.skip("Docker build failed; skipping version test")
+    if not container_package_installed:
+        pytest.skip("Package not importable; skipping version test")
 
     # kivoll-scrape is on PATH via /app/.venv/bin (set in the Dockerfile).
     result = subprocess.run(
