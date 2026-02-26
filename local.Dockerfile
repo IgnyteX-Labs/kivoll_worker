@@ -40,7 +40,7 @@ WORKDIR /app
 COPY --from=deps /app/.venv /app/.venv
 
 # Manifests stay in the image; source is supplied via the runtime mount.
-COPY pyproject.toml uv.lock README.md LICENSE healthcheck.sh ./
+COPY pyproject.toml uv.lock README.md LICENSE ./
 
 # Copy src/ so the editable project install below has something to work with.
 # At runtime, src/ is volume-mounted over this copy, providing live code
@@ -57,9 +57,7 @@ COPY src/ ./src/
 RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv,sharing=locked \
     SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0+dev uv sync --frozen
 
-RUN chmod +x healthcheck.sh
-
-HEALTHCHECK --interval=1m --timeout=10s --retries=3 CMD ["/app/healthcheck.sh"]
+HEALTHCHECK --interval=1m --timeout=10s --retries=3 CMD ["kivoll-healthcheck"]
 
 # Invoke the entry point directly from the venv — no `uv run` overhead
 CMD ["kivoll-schedule", "--verbose"]

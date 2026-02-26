@@ -26,7 +26,6 @@ Example:
 """
 
 from datetime import datetime as dt
-from pathlib import Path
 from urllib.parse import quote_plus
 
 import apscheduler.events
@@ -36,7 +35,12 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 from cliasi import Cliasi
 
 from kivoll_worker.common.arguments import parse_schedule_args
-from kivoll_worker.common.config import data_dir, get_tz
+from kivoll_worker.common.config import get_tz
+from kivoll_worker.common.health import (
+    DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
+    HealthMonitor,
+    start_health_server,
+)
 from kivoll_worker.scraper import main as scrape
 
 # ---------------------------------------------------------------------------
@@ -105,21 +109,41 @@ def schedule() -> int:
 
     # Connect to persistent job store
     cli.log("Connecting to job store")
-    scheduler.add_jobstore(
-        SQLAlchemyJobStore(
-            url=f"postgresql+psycopg://"
-            f"scheduler:{quote_plus(args.scheduler_password)}@{args.db_host}/scheduler_db"
-        )
+    job_store = SQLAlchemyJobStore(
+        url=f"postgresql+psycopg://"
+        f"scheduler:{quote_plus(args.scheduler_password)}@{args.db_host}/scheduler_db"
     )
+    scheduler.add_jobstore(job_store, "scheduler")
+
+    # Initialize health monitor
+    monitor = HealthMonitor(db_engine=job_store.engine)
 
     # Ensure all desired jobs exist and remove any stale ones
     cli.log("Reconciling scheduled jobs")
     _reconcile_jobs(scheduler)
 
     # Update heartbeat after each job execution (success or failure)
-    scheduler.add_listener(
-        lambda event: heartbeat(scheduler), EVENT_JOB_EXECUTED | EVENT_JOB_ERROR
+    def _on_job_event(event: apscheduler.events.JobExecutionEvent) -> None:
+        if event.code == EVENT_JOB_ERROR:
+            monitor.record_failure()
+        monitor.update_tick()
+
+    scheduler.add_listener(_on_job_event, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
+
+    # Add a high-frequency internal heartbeat job to update liveness.
+    # We use jobstore="default" (in-memory) to avoid pickling issues
+    # and unnecessary database load for this maintenance job.
+    scheduler.add_job(
+        monitor.update_tick,
+        trigger="interval",
+        seconds=DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
+        id="health_heartbeat",
+        replace_existing=True,
+        jobstore="default",
     )
+
+    # Start healthcheck HTTP server
+    start_health_server(monitor)
 
     # Calculate and display next run time
     now = dt.now(scheduler.timezone)
@@ -131,54 +155,9 @@ def schedule() -> int:
         messages_stay_in_one_line=False,
     )
 
-    # Write initial heartbeat before starting
-    heartbeat(scheduler)
-
     # Start blocking scheduler (runs until interrupted)
     scheduler.start()
     return 0
-
-
-def heartbeat(
-    scheduler: BlockingScheduler,
-    _: apscheduler.events.SchedulerEvent | None = None,
-) -> None:
-    """
-    Update the heartbeat file with the next scheduled run time.
-
-    Docker healthchecks rely on this file to verify that the scheduler is active.
-    When no jobs are scheduled, the file is removed so that downstream
-    monitors can detect a potential issue.
-
-    :param scheduler: APScheduler instance used to compute the next run time.
-    :param _: Optional scheduler event when this function is invoked as a listener.
-    :rtype: None
-
-    .. note::
-        Removing the heartbeat file indicates that there are no
-        pending jobs and should be handled as a signal that the scheduler is inactive.
-    """
-    # Get current time in scheduler's timezone
-    now = (
-        dt.now(getattr(scheduler, "timezone", None))
-        if getattr(scheduler, "timezone", None)
-        else dt.now()
-    )
-
-    # Collect next fire times for all jobs
-    candidates = [
-        job.trigger.get_next_fire_time(now, now) for job in scheduler.get_jobs()
-    ]
-    next_runs = [candidate for candidate in candidates if candidate is not None]
-
-    # If no jobs scheduled, remove heartbeat file
-    if not next_runs:
-        _heartbeat_path().unlink(missing_ok=True)
-        return
-
-    # Write the earliest next run time to the heartbeat file
-    next_run = min(next_runs)
-    _heartbeat_path().write_text(next_run.isoformat())
 
 
 def _reconcile_jobs(scheduler: BlockingScheduler) -> None:
@@ -198,20 +177,16 @@ def _reconcile_jobs(scheduler: BlockingScheduler) -> None:
     for job_id in existing_job_ids - desired_job_ids:
         scheduler.remove_job(job_id)
 
-    # Add or update all desired jobs
+    # Add or update all desired jobs in the persistent job store
     for job_id, cfg in DESIRED_JOBS.items():
         scheduler.add_job(
             cfg["func"],
             id=job_id,
             name=job_id,
             replace_existing=True,
+            jobstore="scheduler",
             **{k: v for k, v in cfg.items() if k != "func"},
         )
-
-
-def _heartbeat_path() -> Path:
-    """Return the path to the heartbeat file in the data directory."""
-    return data_dir() / "heartbeat"
 
 
 if __name__ == "__main__":

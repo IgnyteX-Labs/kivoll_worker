@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -28,6 +29,7 @@ class _StartCalled(Exception):
 
 
 def test_schedule_initialization(monkeypatch, dummy_cli) -> None:
+    """schedule() creates the scheduler and job store with the correct parameters and starts it."""
     args = SimpleNamespace(scheduler_password="pass", db_host="dbhost")
     monkeypatch.setattr(sched_mod, "parse_schedule_args", lambda: args)
     monkeypatch.setattr(sched_mod, "Cliasi", lambda name: dummy_cli)
@@ -38,12 +40,14 @@ def test_schedule_initialization(monkeypatch, dummy_cli) -> None:
     class _DummyJobStore:
         def __init__(self, url: str) -> None:
             captured["jobstore_url"] = url
+            self.engine = MagicMock()
 
     class _DummyScheduler:
         def __init__(self, timezone) -> None:
             captured["timezone"] = timezone
             self.timezone = timezone
             self.jobstore = None
+            self.jobstore_alias = None
             self.listeners: list[tuple[object, int]] = []
             self._jobs = [
                 _DummyJob(
@@ -52,11 +56,15 @@ def test_schedule_initialization(monkeypatch, dummy_cli) -> None:
             ]
             self.started = False
 
-        def add_jobstore(self, jobstore) -> None:
+        def add_jobstore(self, jobstore, alias=None) -> None:
             self.jobstore = jobstore
+            self.jobstore_alias = alias
 
         def add_listener(self, listener, mask: int) -> None:
             self.listeners.append((listener, mask))
+
+        def add_job(self, *args, **kwargs) -> None:
+            pass
 
         def get_jobs(self):
             return list(self._jobs)
@@ -75,12 +83,9 @@ def test_schedule_initialization(monkeypatch, dummy_cli) -> None:
         lambda scheduler: reconcile_called.append(scheduler),
     )
 
-    heartbeat_calls: list[object] = []
-
-    def _heartbeat(scheduler, *_args) -> None:
-        heartbeat_calls.append(scheduler)
-
-    monkeypatch.setattr(sched_mod, "heartbeat", _heartbeat)
+    # Mock health monitor and server
+    monkeypatch.setattr(sched_mod, "HealthMonitor", MagicMock())
+    monkeypatch.setattr(sched_mod, "start_health_server", MagicMock())
 
     with pytest.raises(_StartCalled):
         sched_mod.schedule()
@@ -90,6 +95,5 @@ def test_schedule_initialization(monkeypatch, dummy_cli) -> None:
         "postgresql+psycopg://scheduler:pass@dbhost/scheduler_db"
     )
     assert reconcile_called and isinstance(reconcile_called[0], _DummyScheduler)
-    assert heartbeat_calls == [reconcile_called[0]]
     assert reconcile_called[0].listeners
     assert reconcile_called[0].started is True

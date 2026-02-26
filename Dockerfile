@@ -30,7 +30,7 @@ ENV SETUPTOOLS_SCM_PRETEND_VERSION=${VERSION}
 WORKDIR /app
 
 # uv.lock is intentionally omitted: `uv build` calls the build backend directly
-COPY pyproject.toml README.md healthcheck.sh LICENSE ./
+COPY pyproject.toml README.md LICENSE ./
 COPY src/ ./src/
 
 RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv,sharing=locked \
@@ -54,9 +54,6 @@ WORKDIR /app
 # All dependencies are already installed — no network access needed for them
 COPY --from=deps /app/.venv /app/.venv
 COPY --from=builder /app/dist /tmp/dist
-COPY --from=builder /app/healthcheck.sh ./healthcheck.sh
-
-RUN chmod +x healthcheck.sh
 
 # Install only the project package itself into the pre-populated venv.
 # --no-deps means zero downloads: uv just lays down the package files & scripts.
@@ -64,7 +61,7 @@ RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv,sharing=locked \
     uv pip install --no-deps /tmp/dist/*.whl \
     && rm -rf /tmp/dist
 
-HEALTHCHECK --interval=1m --timeout=10s --retries=3 CMD ["/app/healthcheck.sh"]
+HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=3 CMD ["kivoll-healthcheck"]
 
 # Invoke the entry point directly from the venv — no `uv run` overhead
 CMD ["kivoll-schedule", "--verbose"]
