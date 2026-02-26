@@ -29,9 +29,6 @@ jobs:
         with:
           context: .
           push: true
-          # github.ref_name is the tag as-is (e.g. "v1.2.3").
-          # SETUPTOOLS_SCM_PRETEND_VERSION strips the leading "v" internally,
-          # so no separate normalisation step is needed.
           build-args: |
             VERSION=${{ github.ref_name }}
           tags: |
