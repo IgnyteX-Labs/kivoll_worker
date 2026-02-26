@@ -19,14 +19,15 @@ RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv,sharing=locked \
 # ---- Stage 2: Build the distributable wheel ----
 FROM ghcr.io/astral-sh/uv:python3.14-trixie-slim AS builder
 
-# VERSION is a build arg; SETUPTOOLS_SCM_PRETEND_VERSION lets setuptools-scm work without git.
+# VERSION is a build arg
 ARG VERSION
+# SETUPTOOLS_SCM_PRETEND_VERSION lets setuptools-scm work without git.
 ENV SETUPTOOLS_SCM_PRETEND_VERSION=${VERSION}
 
 WORKDIR /app
 
 # uv.lock is intentionally omitted: `uv build` calls the build backend directly
-COPY pyproject.toml README.md LICENSE ./
+COPY pyproject.toml README.md healthcheck.sh LICENSE ./
 COPY src/ ./src/
 
 RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv,sharing=locked \
