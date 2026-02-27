@@ -25,6 +25,7 @@ DEFAULT_FAILURE_WINDOW_MINUTES = 15
 DEFAULT_MAX_FAILURES = 5
 DEFAULT_STALE_TIMEOUT_SECONDS = 90
 DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 30
+DEFAULT_HOST = "127.0.0.1"
 
 cli = Cliasi("health")
 
@@ -149,10 +150,14 @@ class HealthRequestHandler(http.server.BaseHTTPRequestHandler):
 
 
 def start_health_server(
-    monitor: HealthMonitor, port: int = DEFAULT_HEALTH_PORT
+    monitor: HealthMonitor, port: int = DEFAULT_HEALTH_PORT, host: str = DEFAULT_HOST
 ) -> threading.Thread:
     """
     Start the healthcheck HTTP server in a background daemon thread.
+    :param monitor: The HealthMonitor instance to use for health status.
+    :param port: The port to listen on (default: 8000).
+    :param host: The host to bind to (default: "127.0.0.1")
+    :returns: The Thread object running the server.
     :raises OSError: If the specified port is already in use or cannot be bound.
     """
     import functools
@@ -160,7 +165,7 @@ def start_health_server(
     handler_factory = functools.partial(HealthRequestHandler, monitor=monitor)
 
     try:
-        server = http.server.HTTPServer(("127.0.0.1", port), handler_factory)
+        server = http.server.HTTPServer((host, port), handler_factory)
     except OSError as e:
         error_msg = (
             f"Failed to start healthcheck server on port {port}: "
