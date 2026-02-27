@@ -213,14 +213,14 @@ def test_apply_migration_failure_raises_and_does_not_record(db_engine) -> None:
 
 @pytest.mark.slow
 @pytest.mark.database
-def test_special_characters_in_passwords(test_db) -> None:
+def test_special_characters_in_passwords(test_db, test_env) -> None:
     """Test that passwords with special characters work correctly."""
     # Test with a password containing various special characters that could
     # break SQL queries or URL parsing: quotes, semicolons, @, %, etc.
     special_password = "p@ss'w;rd%123&test=value"
-    admin_user = "testadmin"
-    admin_password = "testadminpass"
-    admin_db = "postgres"
+    admin_user = test_env["POSTGRES_USER"]
+    admin_password = test_env["POSTGRES_PASSWORD"]
+    admin_db = test_env["POSTGRES_DB"]
 
     host = test_db.get_container_host_ip()
     port = int(test_db.get_exposed_port(5432))

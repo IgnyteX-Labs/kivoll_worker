@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
 
 from kivoll_worker import scheduler as sched_mod
 
@@ -157,3 +158,71 @@ def test_schedule_passes_health_args_to_server(monkeypatch, dummy_cli) -> None:
     assert len(health_server_calls) == 1
     assert health_server_calls[0]["port"] == 9999
     assert health_server_calls[0]["host"] == "0.0.0.0"
+
+
+def test_on_job_event_listener(monkeypatch, dummy_cli) -> None:
+    """_on_job_event calls record_failure on error events and update_tick on every event."""
+    args = SimpleNamespace(
+        scheduler_password="pass",
+        db_host="dbhost",
+        health_port=8000,
+        health_host="127.0.0.1",
+    )
+    monkeypatch.setattr(sched_mod, "parse_schedule_args", lambda: args)
+    monkeypatch.setattr(sched_mod, "Cliasi", lambda name: dummy_cli)
+    monkeypatch.setattr(sched_mod, "get_tz", lambda cli: timezone.utc)
+
+    class _DummyJobStore:
+        def __init__(self, url: str) -> None:
+            self.engine = MagicMock()
+
+    mock_monitor = MagicMock()
+    monkeypatch.setattr(
+        sched_mod, "HealthMonitor", MagicMock(return_value=mock_monitor)
+    )
+
+    captured_listeners: list[tuple] = []
+
+    class _DummyScheduler:
+        def __init__(self, timezone) -> None:
+            self.timezone = timezone
+
+        def add_jobstore(self, *a, **kw) -> None:
+            pass
+
+        def add_listener(self, listener, mask: int) -> None:
+            captured_listeners.append((listener, mask))
+
+        def add_job(self, *a, **kw) -> None:
+            pass
+
+        def get_jobs(self):
+            return []
+
+        def start(self) -> None:
+            raise _StartCalled()
+
+    monkeypatch.setattr(sched_mod, "SQLAlchemyJobStore", _DummyJobStore)
+    monkeypatch.setattr(sched_mod, "BlockingScheduler", _DummyScheduler)
+    monkeypatch.setattr(sched_mod, "_reconcile_jobs", lambda s: None)
+    monkeypatch.setattr(sched_mod, "start_health_server", MagicMock())
+
+    with pytest.raises(_StartCalled):
+        sched_mod.schedule()
+
+    assert len(captured_listeners) == 1
+    listener, mask = captured_listeners[0]
+    assert mask == EVENT_JOB_EXECUTED | EVENT_JOB_ERROR
+
+    # An error event must trigger both record_failure and update_tick.
+    error_event = SimpleNamespace(code=EVENT_JOB_ERROR)
+    listener(error_event)
+    mock_monitor.record_failure.assert_called_once()
+    mock_monitor.update_tick.assert_called_once()
+
+    # A success event must trigger only update_tick (no additional record_failure).
+    mock_monitor.reset_mock()
+    success_event = SimpleNamespace(code=EVENT_JOB_EXECUTED)
+    listener(success_event)
+    mock_monitor.record_failure.assert_not_called()
+    mock_monitor.update_tick.assert_called_once()

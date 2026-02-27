@@ -2,6 +2,7 @@ import json
 import time
 from unittest.mock import MagicMock, patch
 
+import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
 from kivoll_worker.common.health import (
@@ -208,3 +209,83 @@ def test_start_health_server_custom_host_binds_all_interfaces():
 
     bind_address = mock_http_server_cls.call_args[0][0]
     assert bind_address == ("0.0.0.0", 8000)
+
+
+def test_health_monitor_check_db_with_real_postgres(pg_engine):
+    """check_db executes SELECT 1 against a live PostgreSQL instance and returns True."""
+    monitor = HealthMonitor(db_engine=pg_engine)
+    assert monitor.check_db() is True
+    # get_status should also reflect a reachable database
+    status = monitor.get_status()
+    assert status["database"] == "reachable"
+
+
+def test_start_health_server_end_to_end():
+    """start_health_server binds a real socket and serves HTTP.
+
+    /health returns 200 with a JSON body
+    and an unknown path returns 404.
+    """
+    import socket
+    import time
+    import urllib.error
+    import urllib.request
+
+    monitor = HealthMonitor()
+
+    # Ask the OS for a free port, then release it so HTTPServer can bind to it.
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+
+    thread = start_health_server(monitor, port=port, host="127.0.0.1")
+    assert thread.daemon is True
+    assert thread.is_alive()
+
+    # Retry up to 1 second for serve_forever() to start processing requests.
+    health_url = f"http://127.0.0.1:{port}/health"
+    response_data = None
+    for _ in range(20):
+        try:
+            with urllib.request.urlopen(health_url, timeout=1) as resp:
+                assert resp.status == 200
+                response_data = json.loads(resp.read())
+            break
+        except (urllib.error.URLError, ConnectionRefusedError, TimeoutError, OSError):
+            time.sleep(0.05)
+    assert response_data is not None, "Health server did not respond in time"
+    assert response_data["status"] == "healthy"
+
+    # Unknown path must return 404 (exercises the else branch of do_GET)
+    with pytest.raises(urllib.error.HTTPError) as exc_info:
+        urllib.request.urlopen(f"http://127.0.0.1:{port}/unknown", timeout=1)
+    assert exc_info.value.code == 404
+
+
+def test_start_health_server_raises_on_port_in_use(monkeypatch):
+    """start_health_server raises RuntimeError and logs via cli.fail when the port is taken."""
+    import socket
+
+    from kivoll_worker.common import health as health_mod
+
+    fail_messages: list[str] = []
+    monkeypatch.setattr(health_mod.cli, "fail", lambda msg: fail_messages.append(msg))
+    monkeypatch.setattr(health_mod, "log_error", lambda *args, **kwargs: None)
+
+    monitor = HealthMonitor()
+
+    # Occupy a port so HTTPServer cannot bind to it.
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(("127.0.0.1", 0))
+    occupied_port = sock.getsockname()[1]
+    sock.listen(1)
+
+    try:
+        with pytest.raises(RuntimeError) as exc_info:
+            start_health_server(monitor, port=occupied_port, host="127.0.0.1")
+    finally:
+        sock.close()
+
+    assert str(occupied_port) in str(exc_info.value)
+    assert fail_messages, "cli.fail should have been called"
+    assert str(occupied_port) in fail_messages[0]
