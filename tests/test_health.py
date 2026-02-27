@@ -8,6 +8,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from kivoll_worker.common.health import (
     HealthMonitor,
     HealthRequestHandler,
+    HealthServer,
     start_health_server,
 )
 
@@ -181,29 +182,50 @@ def test_health_request_handler_log_message(monkeypatch):
     assert "/other" in logged_messages[1]
 
 
+def test_health_server_shutdown_calls_server_and_joins_thread():
+    """HealthServer.shutdown() calls server.shutdown(), server.server_close(), then thread.join()."""
+    from unittest.mock import call
+
+    mock_server = MagicMock()
+    mock_thread = MagicMock()
+    manager = MagicMock()
+    manager.attach_mock(mock_server, "server")
+    manager.attach_mock(mock_thread, "thread")
+
+    hs = HealthServer(mock_thread, mock_server)
+    hs.shutdown()
+
+    assert manager.mock_calls == [
+        call.server.shutdown(),
+        call.server.server_close(),
+        call.thread.join(),
+    ]
+
+
 def test_start_health_server_custom_port_and_host():
     """start_health_server binds to the given host and port and starts a daemon thread."""
     monitor = HealthMonitor()
     custom_port = 19876
     custom_host = "127.0.0.1"
 
-    with patch("http.server.HTTPServer") as mock_http_server_cls:
+    with patch("http.server.ThreadingHTTPServer") as mock_http_server_cls:
         mock_server_instance = MagicMock()
         mock_http_server_cls.return_value = mock_server_instance
 
-        thread = start_health_server(monitor, port=custom_port, host=custom_host)
+        result = start_health_server(monitor, port=custom_port, host=custom_host)
 
     mock_http_server_cls.assert_called_once()
     bind_address = mock_http_server_cls.call_args[0][0]
     assert bind_address == (custom_host, custom_port)
-    assert thread.daemon is True
+    assert isinstance(result, HealthServer)
+    assert result.thread.daemon is True
 
 
 def test_start_health_server_custom_host_binds_all_interfaces():
-    """start_health_server passes the custom host to HTTPServer when host is 0.0.0.0."""
+    """start_health_server passes the custom host to ThreadingHTTPServer when host is 0.0.0.0."""
     monitor = HealthMonitor()
 
-    with patch("http.server.HTTPServer") as mock_http_server_cls:
+    with patch("http.server.ThreadingHTTPServer") as mock_http_server_cls:
         mock_http_server_cls.return_value = MagicMock()
         start_health_server(monitor, port=8000, host="0.0.0.0")
 
@@ -225,6 +247,7 @@ def test_start_health_server_end_to_end():
 
     /health returns 200 with a JSON body
     and an unknown path returns 404.
+    Shutdown gracefully stops the server and joins the thread.
     """
     import socket
     import time
@@ -233,14 +256,15 @@ def test_start_health_server_end_to_end():
 
     monitor = HealthMonitor()
 
-    # Ask the OS for a free port, then release it so HTTPServer can bind to it.
+    # Ask the OS for a free port, then release it so ThreadingHTTPServer can bind to it.
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
 
-    thread = start_health_server(monitor, port=port, host="127.0.0.1")
-    assert thread.daemon is True
-    assert thread.is_alive()
+    result = start_health_server(monitor, port=port, host="127.0.0.1")
+    assert isinstance(result, HealthServer)
+    assert result.thread.daemon is True
+    assert result.thread.is_alive()
 
     # Retry up to 1 second for serve_forever() to start processing requests.
     health_url = f"http://127.0.0.1:{port}/health"
@@ -260,6 +284,10 @@ def test_start_health_server_end_to_end():
     with pytest.raises(urllib.error.HTTPError) as exc_info:
         urllib.request.urlopen(f"http://127.0.0.1:{port}/unknown", timeout=1)
     assert exc_info.value.code == 404
+
+    # Graceful shutdown: thread must stop and socket must be released
+    result.shutdown()
+    assert not result.thread.is_alive()
 
 
 def test_start_health_server_raises_on_port_in_use(monkeypatch):

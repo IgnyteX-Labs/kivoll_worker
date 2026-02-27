@@ -147,15 +147,39 @@ class HealthRequestHandler(http.server.BaseHTTPRequestHandler):
         cli.log(format % args)
 
 
-def start_health_server(
-    monitor: HealthMonitor, port: int, host: str
-) -> threading.Thread:
+class HealthServer:
+    """
+    Handle for the background healthcheck HTTP server.
+
+    Provides access to the underlying daemon thread and a :meth:`shutdown` method
+    for graceful teardown.
+    """
+
+    def __init__(self, thread: threading.Thread, server: http.server.HTTPServer):
+        self.thread = thread
+        self._server = server
+
+    def shutdown(self) -> None:
+        """
+        Gracefully stop the healthcheck server.
+
+        Signals :py:meth:`serve_forever` to exit, releases the socket, and
+        waits for the background thread to finish.
+        """
+        cli.info("Shutting down healthcheck server...")
+        self._server.shutdown()
+        self._server.server_close()
+        self.thread.join()
+
+
+def start_health_server(monitor: HealthMonitor, port: int, host: str) -> HealthServer:
     """
     Start the healthcheck HTTP server in a background daemon thread.
     :param monitor: The HealthMonitor instance to use for health status.
     :param port: The port to listen on (default: 8000).
     :param host: The host to bind to (default: "127.0.0.1")
-    :returns: The Thread object running the server.
+    :returns:
+        A :class:`HealthServer` with the running thread and a ``shutdown()`` method.
     :raises OSError: If the specified port is already in use or cannot be bound.
     """
     import functools
@@ -163,7 +187,7 @@ def start_health_server(
     handler_factory = functools.partial(HealthRequestHandler, monitor=monitor)
 
     try:
-        server = http.server.HTTPServer((host, port), handler_factory)
+        server = http.server.ThreadingHTTPServer((host, port), handler_factory)
     except OSError as e:
         error_msg = (
             f"Failed to start healthcheck server on port {port}: "
@@ -178,4 +202,4 @@ def start_health_server(
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     cli.info(f"Healthcheck server started on port {port}")
-    return thread
+    return HealthServer(thread, server)

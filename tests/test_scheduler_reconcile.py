@@ -19,7 +19,7 @@ class _DummyScheduler:
     def get_jobs(self) -> list[_DummyJob]:
         return list(self._jobs)
 
-    def remove_job(self, job_id: str) -> None:
+    def remove_job(self, job_id: str, **kwargs: object) -> None:
         self.removed.append(job_id)
 
     def add_job(self, func: Callable[[], None], **kwargs: object) -> None:

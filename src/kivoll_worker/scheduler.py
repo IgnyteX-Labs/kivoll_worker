@@ -143,7 +143,9 @@ def schedule() -> int:
     )
 
     # Start healthcheck HTTP server
-    start_health_server(monitor, port=args.health_port, host=args.health_host)
+    health_server = start_health_server(
+        monitor, port=args.health_port, host=args.health_host
+    )
 
     # Calculate and display next run time
     now = dt.now(scheduler.timezone)
@@ -159,8 +161,13 @@ def schedule() -> int:
         messages_stay_in_one_line=False,
     )
 
-    # Start blocking scheduler (runs until interrupted)
-    scheduler.start()
+    # Start blocking scheduler (runs until interrupted).
+    # try/finally guarantees health_server.shutdown() runs even when a
+    # KeyboardInterrupt propagates out of start() before reaching the cleanup line.
+    try:
+        scheduler.start()
+    finally:
+        health_server.shutdown()
     return 0
 
 
