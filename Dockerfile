@@ -61,7 +61,7 @@ RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv,sharing=locked \
     uv pip install --no-deps /tmp/dist/*.whl \
     && rm -rf /tmp/dist
 
-HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=3 CMD ["kivoll-healthcheck"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["kivoll-healthcheck"]
 
 # Invoke the entry point directly from the venv — no `uv run` overhead
 CMD ["kivoll-schedule", "--verbose"]

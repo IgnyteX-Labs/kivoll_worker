@@ -57,7 +57,7 @@ COPY src/ ./src/
 RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv,sharing=locked \
     SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0+dev uv sync --frozen
 
-HEALTHCHECK --interval=1m --timeout=10s --retries=3 CMD ["kivoll-healthcheck"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["kivoll-healthcheck"]
 
 # Invoke the entry point directly from the venv — no `uv run` overhead
 CMD ["kivoll-schedule", "--verbose"]
