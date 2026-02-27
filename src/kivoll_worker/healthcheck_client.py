@@ -3,10 +3,14 @@ import http.client
 import sys
 
 
-def check_health(port: int, path: str, timeout: int, host: str) -> bool:
+def check_health(port: int, host: str, path: str, timeout: int) -> bool:
     """
     Perform a healthcheck by sending a GET request to the specified port and path.
-    Returns True if the response code is 200, False otherwise.
+    :param port: Port of the health server
+    :param host: Host of the health server
+    :param path: Path of the health endpoint
+    :param timeout: Timeout in seconds for the HTTP request
+    :return: True if the healthcheck is successful (HTTP 200), False otherwise
     """
     conn = http.client.HTTPConnection(host, port, timeout=timeout)
     try:
@@ -38,7 +42,7 @@ def main(argv: list[str] | None = None) -> None:
     )
     args = parser.parse_args(argv)
 
-    if check_health(args.port, args.path, args.timeout, args.host):
+    if check_health(args.port, args.host, args.path, args.timeout):
         sys.exit(0)
     else:
         sys.exit(1)

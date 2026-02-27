@@ -12,7 +12,7 @@ def test_check_health_success():
 
         mock_instance.getresponse.return_value = mock_response
 
-        assert check_health(8000, "/health", 5) is True
+        assert check_health(8000, "localhost", "/health", 5) is True
         mock_conn.assert_called_once_with("localhost", 8000, timeout=5)
         mock_instance.request.assert_called_once_with("GET", "/health")
 
@@ -25,7 +25,7 @@ def test_check_health_failure_status():
         mock_response.status = 503
         mock_instance.getresponse.return_value = mock_response
 
-        assert check_health(8000, "/health", 5) is False
+        assert check_health(8000, "localhost", "/health", 5) is False
 
 
 def test_check_health_exception():
@@ -34,7 +34,7 @@ def test_check_health_exception():
         mock_instance = mock_conn.return_value
         mock_instance.request.side_effect = Exception("Network error")
 
-        assert check_health(8000, "/health", 5) is False
+        assert check_health(8000, "localhost", "/health", 5) is False
 
 
 def test_main_success():
