@@ -103,9 +103,13 @@ Docker configuration
 
 Docker files
 ~~~~~~~~~~~~~~
-* The local.Dockerfile is intended for local development and testing. It needs the code to be mounted inside the container to be able to reflect live changes instantly.
+* The local.Dockerfile is intended for local development and testing.
+  It needs the code to be mounted inside the container to be able to
+  reflect live changes instantly.
 
-* Dockerfile is intended for production use and is used in the CI/CD pipeline to build the kivoll_worker image and push it to GitHub Container Registry.
+* Dockerfile is intended for production use
+  and is used in the CI/CD pipeline to build the kivoll_worker image
+  and push it to GitHub Container Registry.
 
 Docker stages
 ~~~~~~~~~~~~~~~
@@ -119,12 +123,14 @@ Both Dockerfiles include a healthcheck.
 ``kivoll-schedule`` runs a small HTTP server which can be
 checked using the ``kivoll-healthcheck`` command.
 
-Running the healthcheck command will check if ``kivoll-schedule`` is running and healthy.
+Running the healthcheck command will check if
+``kivoll-schedule`` is running and healthy.
+
 .. code-block:: bash
 
     kivoll-healthcheck
 
-This command should return 0 if the ``kivoll-schedule`` is healthy and running,
+This command returns 0 if the ``kivoll-schedule`` is healthy and running,
 and a non-zero code otherwise.
 
 
