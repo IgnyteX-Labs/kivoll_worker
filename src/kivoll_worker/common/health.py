@@ -20,12 +20,10 @@ from sqlalchemy.engine import Engine
 from kivoll_worker.common.failure import log_error
 
 # Default healthcheck settings
-DEFAULT_HEALTH_PORT = 8000
 DEFAULT_FAILURE_WINDOW_MINUTES = 15
 DEFAULT_MAX_FAILURES = 5
 DEFAULT_STALE_TIMEOUT_SECONDS = 90
 DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 30
-DEFAULT_HOST = "127.0.0.1"
 
 cli = Cliasi("health")
 
@@ -150,7 +148,7 @@ class HealthRequestHandler(http.server.BaseHTTPRequestHandler):
 
 
 def start_health_server(
-    monitor: HealthMonitor, port: int = DEFAULT_HEALTH_PORT, host: str = DEFAULT_HOST
+    monitor: HealthMonitor, port: int, host: str
 ) -> threading.Thread:
     """
     Start the healthcheck HTTP server in a background daemon thread.

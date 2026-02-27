@@ -143,7 +143,7 @@ def schedule() -> int:
     )
 
     # Start healthcheck HTTP server
-    start_health_server(monitor)
+    start_health_server(monitor, port=args.health_port, host=args.health_host)
 
     # Calculate and display next run time
     now = dt.now(scheduler.timezone)

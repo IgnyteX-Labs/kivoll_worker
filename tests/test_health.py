@@ -1,10 +1,14 @@
 import json
 import time
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from sqlalchemy.exc import SQLAlchemyError
 
-from kivoll_worker.common.health import HealthMonitor, HealthRequestHandler
+from kivoll_worker.common.health import (
+    HealthMonitor,
+    HealthRequestHandler,
+    start_health_server,
+)
 
 
 class MockEngine:
@@ -174,3 +178,33 @@ def test_health_request_handler_log_message(monkeypatch):
     handler.log_message('"%s" %s %s', "GET /other HTTP/1.1", "200", "123")
     assert len(logged_messages) == 2
     assert "/other" in logged_messages[1]
+
+
+def test_start_health_server_custom_port_and_host():
+    """start_health_server binds to the given host and port and starts a daemon thread."""
+    monitor = HealthMonitor()
+    custom_port = 19876
+    custom_host = "127.0.0.1"
+
+    with patch("http.server.HTTPServer") as mock_http_server_cls:
+        mock_server_instance = MagicMock()
+        mock_http_server_cls.return_value = mock_server_instance
+
+        thread = start_health_server(monitor, port=custom_port, host=custom_host)
+
+    mock_http_server_cls.assert_called_once()
+    bind_address = mock_http_server_cls.call_args[0][0]
+    assert bind_address == (custom_host, custom_port)
+    assert thread.daemon is True
+
+
+def test_start_health_server_custom_host_binds_all_interfaces():
+    """start_health_server passes the custom host to HTTPServer when host is 0.0.0.0."""
+    monitor = HealthMonitor()
+
+    with patch("http.server.HTTPServer") as mock_http_server_cls:
+        mock_http_server_cls.return_value = MagicMock()
+        start_health_server(monitor, port=8000, host="0.0.0.0")
+
+    bind_address = mock_http_server_cls.call_args[0][0]
+    assert bind_address == ("0.0.0.0", 8000)
