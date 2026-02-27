@@ -147,11 +147,15 @@ def schedule() -> int:
 
     # Calculate and display next run time
     now = dt.now(scheduler.timezone)
-    next_run = min(
-        job.trigger.get_next_fire_time(now, now) for job in scheduler.get_jobs()
-    )
+    fire_times = [
+        time
+        for job in scheduler.get_jobs()
+        if (time := job.trigger.get_next_fire_time(now, now)) is not None
+    ]
     cli.info(
-        f"Scheduler initializing, next run at ~{next_run}",
+        f"Scheduler initializing, next run at ~{min(fire_times)}"
+        if fire_times
+        else "Scheduler initializing, could not get upcoming runs (!)ix",
         messages_stay_in_one_line=False,
     )
 
