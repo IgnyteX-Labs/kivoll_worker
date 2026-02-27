@@ -155,7 +155,7 @@ def schedule() -> int:
     cli.info(
         f"Scheduler initializing, next run at ~{min(fire_times)}"
         if fire_times
-        else "Scheduler initializing, could not get upcoming runs (!)ix",
+        else "Scheduler initializing, could not get upcoming runs (!)",
         messages_stay_in_one_line=False,
     )
 
