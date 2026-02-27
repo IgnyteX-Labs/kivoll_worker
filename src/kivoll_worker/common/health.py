@@ -17,6 +17,8 @@ from cliasi import Cliasi
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+from kivoll_worker.common.failure import log_error
+
 # Default healthcheck settings
 DEFAULT_HEALTH_PORT = 8000
 DEFAULT_FAILURE_WINDOW_MINUTES = 15
@@ -151,12 +153,25 @@ def start_health_server(
 ) -> threading.Thread:
     """
     Start the healthcheck HTTP server in a background daemon thread.
+    :raises OSError: If the specified port is already in use or cannot be bound.
     """
     import functools
 
     handler_factory = functools.partial(HealthRequestHandler, monitor=monitor)
 
-    server = http.server.HTTPServer(("127.0.0.1", port), handler_factory)
+    try:
+        server = http.server.HTTPServer(("127.0.0.1", port), handler_factory)
+    except OSError as e:
+        error_msg = (
+            f"Failed to start healthcheck server on port {port}: "
+            f"The port is already in use. "
+            f"Please choose a different port or stop the process using port {port}."
+        )
+        cli.fail(error_msg)
+        ex = RuntimeError(error_msg)
+        log_error(ex, "health:server:start", False)
+        raise ex from e
+
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     cli.info(f"Healthcheck server started on port {port}")
