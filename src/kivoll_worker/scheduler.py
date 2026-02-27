@@ -179,7 +179,7 @@ def _reconcile_jobs(scheduler: BlockingScheduler) -> None:
 
     # Remove jobs that are no longer desired
     for job_id in existing_job_ids - desired_job_ids:
-        scheduler.remove_job(job_id)
+        scheduler.remove_job(job_id, jobstore="scheduler")
 
     # Add or update all desired jobs in the persistent job store
     for job_id, cfg in DESIRED_JOBS.items():
