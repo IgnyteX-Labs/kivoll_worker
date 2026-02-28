@@ -181,11 +181,13 @@ def _parse_common_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
                 continue
             cli.fail(
                 f"{env_var} is not set. Will use default value '{default}',"
-                " which is unsafe and will not run."
+                " which is unsafe and will not run.",
+                messages_stay_in_one_line=False,
             )
             cli.fail(
                 "Please set a secure password in .env or pass "
-                "--allow-insecure-defaults to continue."
+                "--allow-insecure-defaults to continue.",
+                messages_stay_in_one_line=False,
             )
             args.__setattr__(var_name, default)
             raise SystemExit(1)
@@ -196,11 +198,13 @@ def _parse_common_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
                 continue
             cli.fail(
                 f"{env_var} is set to the default value '{default}'."
-                " This is unsafe - the program will not run."
+                " This is unsafe - the program will not run.",
+                messages_stay_in_one_line=False,
             )
             cli.fail(
                 "Please set a secure password in .env or pass "
-                "--allow-insecure-defaults to continue."
+                "--allow-insecure-defaults to continue.",
+                messages_stay_in_one_line=False,
             )
             raise SystemExit(1)
         else:

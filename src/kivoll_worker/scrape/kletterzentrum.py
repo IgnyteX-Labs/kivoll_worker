@@ -235,7 +235,10 @@ def kletterzentrum(args: Namespace, connection: Connection) -> bool:
         ):
             url = config.config()["modules"]["kletterzentrum"]["url"]
         else:
-            cli.fail("Could not retrieve url to use (malformed config)")
+            cli.fail(
+                "Could not retrieve url to use (malformed config)",
+                messages_stay_in_one_line=False,
+            )
             log_error(
                 ValueError("Could not retrieve url to use (malformed config)"),
                 "kletterzentrum:fetch:url_error",
