@@ -70,7 +70,7 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/ignyteX-Labs/kivoll_worker"
 Issues = "https://github.com/ignyteX-Labs/kivoll_worker/issues"
-Documentation = "https://ignytex-labs.github.io/kivoll_worker/"
+Documentation = "https://ignyteX-Labs.github.io/kivoll_worker/"
 
 [project.scripts]
 kivoll-schedule = "kivoll_worker.scheduler:main"
@@ -118,7 +118,7 @@ select = ["E", "F", "I", "B", "UP"]
 
 [tool.mypy]
 strict = true
-python_version = "3.10"
+python_version = "3.12"
 
 [[tool.mypy.overrides]]
 module = [
