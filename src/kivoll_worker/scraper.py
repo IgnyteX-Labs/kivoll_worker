@@ -13,7 +13,7 @@ Scrape Targets:
 Entry Points:
     - `kivoll-scrape`: Run scraping manually or for specific targets
 
-Example::
+Example:
     $ kivoll-scrape --targets=weather,kletterzentrum --verbose
     $ kivoll-scrape --list-targets
     $ kivoll-scrape  # Auto-selects targets based on current time

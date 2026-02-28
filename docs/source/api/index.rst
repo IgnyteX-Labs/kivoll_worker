@@ -1,11 +1,37 @@
 API Reference
 =============
 
-Top-level package
------------------
+.. toctree::
+   :maxdepth: 1
+   :caption: Subpackages
 
-.. autosummary::
-    :toctree: generated/
-    :recursive:
+   common
+   scrape
+   storage
 
-    kivoll_worker
+CLI entry points
+====================
+
+Scheduler
+----------
+
+.. automodule:: kivoll_worker.scheduler
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Scraper
+--------
+
+.. automodule:: kivoll_worker.scraper
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Healthcheck Client
+-----------------------
+
+.. automodule:: kivoll_worker.healthcheck_client
+   :members:
+   :undoc-members:
+   :show-inheritance:

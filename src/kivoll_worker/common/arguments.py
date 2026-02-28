@@ -8,7 +8,7 @@ This module provides argument parsing helpers for each CLI entry point:
 Each parser adds the shared options ``--verbose``, ``--warn-only``, and
 ``--config-path`` before initializing configuration and error tracking.
 
-Example::
+Example:
     >>> from kivoll_worker.common.arguments import parse_scrape_args
     >>> args = parse_scrape_args()
     >>> if args.dry_run:

@@ -10,7 +10,7 @@ and resolves user-defined data directory paths and timezones.
 .. note::
     ``init_config()`` must be called before ``config()`` or ``data_dir()`` are used.
 
-Example::
+Example:
     >>> from kivoll_worker.common.config import init_config, config, data_dir
     >>> init_config("data/config.json")
     >>> print(config()["modules"]["weather"]["url"])
@@ -62,7 +62,7 @@ def config() -> Any:
     :rtype: dict[str, Any]
     :raises RuntimeError: When ``init_config()`` was not called.
 
-    Example::
+    Example:
         >>> cfg = config()
         >>> weather_url = cfg["modules"]["weather"]["url"]
     """
@@ -211,7 +211,7 @@ def get_tz(cli: Cliasi) -> tzinfo | ZoneInfo | None:
         or ``None`` if resolution fails.
     :rtype: tzinfo | ZoneInfo | None
 
-    Example::
+    Example:
         >>> from kivoll_worker.common.config import get_tz
         >>> tz = get_tz(cli)
         >>> now = datetime.now(tz)
