@@ -75,7 +75,7 @@ def data_dir() -> Path:
     """
     Return the resolved data directory path.
 
-    :returns: Absolute path where runtime files (databases, heartbeat, cached HTML) live
+    :returns: Absolute path where runtime files (databases, cached HTML) live
     :rtype: Path
     :raises RuntimeError: When ``init_config()`` was not called.
     """

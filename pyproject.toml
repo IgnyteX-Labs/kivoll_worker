@@ -75,6 +75,7 @@ Documentation = "https://ignytex-labs.github.io/kivoll_worker/"
 [project.scripts]
 kivoll-schedule = "kivoll_worker.scheduler:main"
 kivoll-scrape = "kivoll_worker.scraper:main"
+kivoll-healthcheck = "kivoll_worker.healthcheck_client:main"
 
 [tool.setuptools_scm]
 write_to = "src/kivoll_worker/_version.py"

@@ -54,10 +54,13 @@ def test_db(test_env) -> Generator[DockerContainer, Any, None]:
 
 
 @pytest.fixture(scope="function")
-def db_engine(
-    test_db: DockerContainer, test_env: dict[str, str]
-) -> Generator[Session, Any, None]:
-    """Get a connection that rolls back after each test."""
+def pg_engine(test_db: DockerContainer, test_env: dict[str, str]):
+    """Return a bare SQLAlchemy Engine connected to the test PostgreSQL container.
+
+    Use this fixture when a test needs an Engine directly (e.g. to pass to
+    HealthMonitor). For tests that read/write ORM models, prefer db_engine,
+    which wraps this engine in a transaction that rolls back after each test.
+    """
     host = test_db.get_container_host_ip()
     port = int(test_db.get_exposed_port(5432))
 
@@ -70,7 +73,16 @@ def db_engine(
     )
 
     engine = create_engine(url, future=True)
-    connection = engine.connect()
+    try:
+        yield engine
+    finally:
+        engine.dispose()
+
+
+@pytest.fixture(scope="function")
+def db_engine(pg_engine) -> Generator[Session, Any, None]:
+    """Get a session that rolls back after each test, built on top of pg_engine."""
+    connection = pg_engine.connect()
     transaction = connection.begin()
 
     session = sessionmaker(bind=connection, future=True)()
@@ -89,7 +101,6 @@ def db_engine(
         session.close()
         transaction.rollback()
         connection.close()
-        engine.dispose()
 
 
 def _wait_for_db_ready(host: str, port: int, user: str, password: str, db: str) -> None:

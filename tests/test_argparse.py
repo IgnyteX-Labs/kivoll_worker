@@ -45,6 +45,8 @@ def test_parse_manage_args_defaults(monkeypatch, set_valid_credentials):
     assert args.verbose is False
     assert args.warn_only is False
     assert args.config_path == "data/config.json"
+    assert args.health_port == 8000
+    assert args.health_host == "127.0.0.1"
 
 
 def test_parse_manage_args_with_options(monkeypatch, set_valid_credentials):
@@ -65,6 +67,34 @@ def test_parse_manage_args_warn_only(monkeypatch, set_valid_credentials):
     assert args.verbose is False
     assert args.warn_only is True
     assert args.config_path == "data/config.json"
+
+
+def test_parse_schedule_args_custom_health_port(monkeypatch, set_valid_credentials):
+    """Test that --health-port overrides the default healthcheck port."""
+    monkeypatch.setattr(sys, "argv", ["kivoll-schedule", "--health-port", "9090"])
+    args = arguments.parse_schedule_args()
+    assert args.health_port == 9090
+
+
+def test_parse_schedule_args_custom_health_host(monkeypatch, set_valid_credentials):
+    """Test that --health-host overrides the default healthcheck host."""
+    monkeypatch.setattr(sys, "argv", ["kivoll-schedule", "--health-host", "0.0.0.0"])
+    args = arguments.parse_schedule_args()
+    assert args.health_host == "0.0.0.0"
+
+
+def test_parse_schedule_args_custom_health_port_and_host(
+    monkeypatch, set_valid_credentials
+):
+    """Test that --health-port and --health-host can both be overridden together."""
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["kivoll-schedule", "--health-port", "8080", "--health-host", "0.0.0.0"],
+    )
+    args = arguments.parse_schedule_args()
+    assert args.health_port == 8080
+    assert args.health_host == "0.0.0.0"
 
 
 def test_parse_scrape_args_defaults(monkeypatch, set_valid_credentials):

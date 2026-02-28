@@ -232,6 +232,20 @@ def parse_schedule_args() -> argparse.Namespace:
         prog="kivoll-schedule",
         description="Kletterzentrum Innsbruck Auslastungsmonitor - job scheduler",
     )
+    parser.add_argument(
+        "--health-port",
+        dest="health_port",
+        type=int,
+        default=8000,
+        help="Port for the healthcheck HTTP server (default: 8000)",
+    )
+    parser.add_argument(
+        "--health-host",
+        dest="health_host",
+        type=str,
+        default="127.0.0.1",
+        help="Host/interface for the healthcheck HTTP server (default: 127.0.0.1)",
+    )
     return _parse_common_args(parser)
 
 

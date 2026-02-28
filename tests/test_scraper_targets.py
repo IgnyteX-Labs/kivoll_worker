@@ -9,12 +9,14 @@ from kivoll_worker import scraper
 
 
 def test_parse_time_of_day_valid(dummy_cli) -> None:
+    """_parse_time_of_day() correctly parses a valid HH:MM string."""
     cli = dummy_cli
     parsed = scraper._parse_time_of_day("14:30", cli)
     assert parsed == time(14, 30)
 
 
 def test_parse_time_of_day_invalid_reports_failure(dummy_cli, monkeypatch) -> None:
+    """_parse_time_of_day() raises ValueError and records a failure for an invalid string."""
     cli = dummy_cli
     monkeypatch.setattr(scraper, "log_error", lambda *args, **kwargs: None)
     with pytest.raises(ValueError):
@@ -23,6 +25,7 @@ def test_parse_time_of_day_invalid_reports_failure(dummy_cli, monkeypatch) -> No
 
 
 def test_is_open_includes_start_excludes_end() -> None:
+    """_is_open() treats the start time as inclusive and the end time as exclusive."""
     info = {"open": (time(9, 0), time(22, 0))}
     assert scraper._is_open(time(9, 0), info) is True
     assert scraper._is_open(time(21, 59), info) is True
@@ -30,6 +33,7 @@ def test_is_open_includes_start_excludes_end() -> None:
 
 
 def test_resolve_targets_all_includes_all(dummy_cli, monkeypatch) -> None:
+    """_resolve_targets() includes valid targets and warns about unknown ones in the list."""
     cli = dummy_cli
     monkeypatch.setattr(scraper, "log_error", lambda *args, **kwargs: None)
     resolved = scraper._resolve_targets("all,unknown,weather", time(10, 0), cli)
@@ -38,12 +42,14 @@ def test_resolve_targets_all_includes_all(dummy_cli, monkeypatch) -> None:
 
 
 def test_resolve_targets_auto_selection_respects_open_hours(dummy_cli) -> None:
+    """_resolve_targets() automatically selects only targets that are open at the given time."""
     cli = dummy_cli
     resolved = scraper._resolve_targets(None, time(23, 0), cli)
     assert resolved == ["weather"]
 
 
 def test_main_partial_failure_exit_code(monkeypatch) -> None:
+    """main() returns exit code 1 when at least one scrape target fails."""
     args = Namespace(list_targets=False, time_of_day=None, targets="alpha,beta")
     monkeypatch.setattr(scraper, "parse_scrape_args", lambda: args)
     storage = mock.Mock()

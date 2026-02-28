@@ -26,20 +26,17 @@ class _DummyErrors:
 
 
 class _DummyConfig:
-    def __init__(self):
-        self.json = {
-            "paths": {"data": str(pathlib.Path(".").resolve())},
-            "file": {"version": 1},
-        }
+    def __init__(self, data_dir=None):
+        self._path = (
+            str(data_dir) if data_dir is not None else str(pathlib.Path(".").resolve())
+        )
+        self.json = {"paths": {"data": self._path}, "file": {"version": 1}}
 
     def reload(self, *a, **k):
         return None
 
     def restore_default(self, *a, **k):
-        self.json = {
-            "paths": {"data": str(pathlib.Path(".").resolve())},
-            "file": {"version": 1},
-        }
+        self.json = {"paths": {"data": self._path}, "file": {"version": 1}}
 
 
 # Apply minimal stand-ins if the real ones are not set yet
@@ -112,11 +109,13 @@ def _create_weather_table(conn, resolution: str, columns: list[str]) -> None:
 
 
 def test_is_close() -> None:
+    """_is_close() returns True for values within tolerance and False otherwise."""
     assert weather._is_close(10.0, 10.01)
     assert not weather._is_close(10.0, 10.5)
 
 
 def test_validate_parameters_with_cache() -> None:
+    """validate_parameters() splits a parameter list into valid and invalid entries using the cache."""
     # Prepare a fake columns cache
     weather._columns_cache.clear()
     weather._columns_cache["hourly"] = frozenset({"t1", "t2"})
@@ -134,6 +133,7 @@ def test_validate_parameters_with_cache() -> None:
 @pytest.mark.slow
 @pytest.mark.database
 def test_load_columns_from_db_and_get_valid_columns(db_engine, monkeypatch) -> None:
+    """_load_columns_from_db() populates the columns cache from the weather_parameters table."""
     session = db_engine
     session.execute(text("CREATE SCHEMA IF NOT EXISTS public"))
 
@@ -168,6 +168,7 @@ def test_load_columns_from_db_and_get_valid_columns(db_engine, monkeypatch) -> N
 @pytest.mark.slow
 @pytest.mark.database
 def test_insert_daily_with_arrays(db_engine) -> None:
+    """insert_weather_data() inserts the correct rows for a daily resolution dataset."""
     session = db_engine
     session.execute(text("CREATE SCHEMA IF NOT EXISTS public"))
     _create_weather_table(session, "daily", ["temperature_2m", "precipitation_sum"])
@@ -199,6 +200,7 @@ def test_insert_daily_with_arrays(db_engine) -> None:
 @pytest.mark.slow
 @pytest.mark.database
 def test_insert_returns_false_when_no_valid_params(db_engine) -> None:
+    """insert_weather_data() returns False when none of the requested parameters are valid."""
     session = db_engine
     session.execute(text("CREATE SCHEMA IF NOT EXISTS public"))
     _create_weather_table(session, "daily", ["temperature_2m"])
@@ -227,6 +229,8 @@ def test_insert_returns_false_when_no_valid_params(db_engine) -> None:
 
 
 def test_insert_raises_on_unsupported_dialect(monkeypatch) -> None:
+    """insert_weather_data() raises UnsupportedDialect for non-PostgreSQL database backends."""
+
     class FakeDialect:
         name = "mysql"
 
@@ -276,33 +280,10 @@ def _disable_log_error_and_init_minimal_config(monkeypatch, tmp_path):
     monkeypatch.setattr(failure_mod, "log_error", lambda *a, **k: None, raising=False)
 
     # Provide a minimal _errors object with required attributes
-    class _DummyErrors:
-        def __init__(self):
-            self.json = {"errors": [], "file": {"version": 1}}
-
-        def save(self):
-            return None
-
-        def reload(self, *a, **k):
-            return None
-
-        def restore_default(self, *a, **k):
-            self.json = {"errors": [], "file": {"version": 1}}
-
     monkeypatch.setattr(failure_mod, "_errors", _DummyErrors(), raising=False)
 
     # Provide a minimal _config JSONFile-like object and data_dir
-    class _DummyConfig:
-        def __init__(self):
-            self.json = {"paths": {"data": str(tmp_path)}, "file": {"version": 1}}
-
-        def reload(self, *a, **k):
-            return None
-
-        def restore_default(self, *a, **k):
-            self.json = {"paths": {"data": str(tmp_path)}, "file": {"version": 1}}
-
-    monkeypatch.setattr(config_mod, "_config", _DummyConfig(), raising=False)
+    monkeypatch.setattr(config_mod, "_config", _DummyConfig(tmp_path), raising=False)
     monkeypatch.setattr(config_mod, "_data_dir", tmp_path, raising=False)
 
     # Also patch the weather module's imported log_error (in case it imported earlier)
@@ -312,6 +293,7 @@ def _disable_log_error_and_init_minimal_config(monkeypatch, tmp_path):
 
 
 def test_raise_value_error_with_empty_url_or_parameters(monkeypatch) -> None:
+    """weather() returns False when the config URL is empty or parameters are missing."""
     cfg = {"modules": {"weather": {"url": "", "parameters": {}, "locations": {}}}}
     monkeypatch.setattr(weather, "config", lambda: cfg)
 
@@ -319,6 +301,7 @@ def test_raise_value_error_with_empty_url_or_parameters(monkeypatch) -> None:
 
 
 def test_warn_on_nonlist_parameters(monkeypatch) -> None:
+    """weather() logs errors for every resolution whose parameter value is not a list."""
     cfg = {
         "modules": {
             "weather": {
@@ -390,6 +373,7 @@ def test_warn_on_nonlist_parameters(monkeypatch) -> None:
 
 
 def test_get_valid_columns_unknown_resolution_raises(monkeypatch) -> None:
+    """get_valid_columns() raises ValueError for an unrecognised resolution string."""
     weather._columns_cache.clear()
     weather._columns_cache["hourly"] = frozenset({"a"})
     with pytest.raises(ValueError):
@@ -397,6 +381,8 @@ def test_get_valid_columns_unknown_resolution_raises(monkeypatch) -> None:
 
 
 def test__load_columns_from_db_raises_on_sqlalchemy_error(monkeypatch) -> None:
+    """_load_columns_from_db() re-raises SQLAlchemyError when the query fails."""
+
     # Fake connection whose execute will raise SQLAlchemyError
     class BadConn:
         def execute(self, *a, **k):
@@ -420,6 +406,7 @@ def test__load_columns_from_db_raises_on_sqlalchemy_error(monkeypatch) -> None:
 @pytest.mark.slow
 @pytest.mark.database
 def test_get_weather_table_caches_table_object(db_engine) -> None:
+    """_get_weather_table() returns the same Table object on repeated calls (caching)."""
     session = db_engine
     session.execute(text("CREATE SCHEMA IF NOT EXISTS public"))
     _create_weather_table(session, "daily", ["t1"])  # creates weather_daily
@@ -436,6 +423,7 @@ def test_get_weather_table_caches_table_object(db_engine) -> None:
 def test_insert_weather_data_returns_false_on_execute_error(
     db_engine, monkeypatch
 ) -> None:
+    """insert_weather_data() returns False and does not raise when execute() fails."""
     session = db_engine
     session.execute(text("CREATE SCHEMA IF NOT EXISTS public"))
     _create_weather_table(session, "daily", ["temperature_2m"])
@@ -468,6 +456,7 @@ def test_insert_weather_data_returns_false_on_execute_error(
 @pytest.mark.slow
 @pytest.mark.database
 def test_insert_weather_data_handles_none_and_casting(db_engine) -> None:
+    """insert_weather_data() stores None values as NULL and casts numeric types correctly."""
     session = db_engine
     session.execute(text("CREATE SCHEMA IF NOT EXISTS public"))
     _create_weather_table(session, "daily", ["temperature_2m", "precipitation_sum"])
@@ -630,6 +619,7 @@ def test_weather_success_inserts_all_resolutions(db_engine, monkeypatch):
 def test_weather_handles_missing_subobjects_and_returns_false(
     db_engine, monkeypatch
 ) -> None:
+    """weather() returns False when the API response is missing Current/Hourly/Daily blocks."""
     session = db_engine
     session.execute(text("CREATE SCHEMA IF NOT EXISTS public"))
 
@@ -675,6 +665,7 @@ def test_weather_handles_missing_subobjects_and_returns_false(
 @pytest.mark.slow
 @pytest.mark.database
 def test_weather_malformed_config_returns_false(monkeypatch) -> None:
+    """weather() returns False when the config URL or parameters are None."""
     # Malformed config where url or parameters are falsy
     cfg = {"modules": {"weather": {"url": None, "parameters": None, "locations": {}}}}
     monkeypatch.setattr(weather, "config", lambda: cfg)
@@ -686,6 +677,7 @@ def test_weather_malformed_config_returns_false(monkeypatch) -> None:
 @pytest.mark.slow
 @pytest.mark.database
 def test_weather_request_error_returns_false(monkeypatch) -> None:
+    """weather() returns False when the Open-Meteo API client raises a request error."""
     # Valid-ish config but API client raises
     cfg = {
         "modules": {
@@ -763,6 +755,7 @@ def test_weather_timeout_returns_false(monkeypatch, dummy_cli) -> None:
 @pytest.mark.slow
 @pytest.mark.database
 def test_weather_returns_false_on_sqlalchemy_error(monkeypatch, dummy_cli) -> None:
+    """weather() returns False and logs the error when a database insert raises SQLAlchemyError."""
     cfg = {
         "modules": {
             "weather": {
