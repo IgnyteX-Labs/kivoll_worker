@@ -196,7 +196,6 @@ def _reconcile_jobs(scheduler: BlockingScheduler) -> None:
             id=job_id,
             name=job_id,
             replace_existing=True,
-            jobstore="scheduler",
             **{k: v for k, v in cfg.items() if k != "func"},
         )
 
