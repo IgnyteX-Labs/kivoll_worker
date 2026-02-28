@@ -1,5 +1,6 @@
 import json
 import time
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -42,8 +43,8 @@ def test_health_monitor_stale_scheduler():
     # Initially healthy
     assert monitor.get_status()["status"] == "healthy"
 
-    # Wait for it to become stale
-    time.sleep(1.1)
+    # Fake it being stale
+    monitor._last_tick = datetime.now(timezone.utc) - timedelta(seconds=100)
     status = monitor.get_status()
     assert status["status"] == "unhealthy"
     assert status["scheduler"] == "stale"
@@ -83,9 +84,8 @@ def test_health_monitor_failure_pruning():
     """Failures outside the tracking window are pruned and no longer count toward the limit."""
     # Small window for testing
     monitor = HealthMonitor(failure_window=0)  # Failures expire immediately for test
-    monitor.record_failure()
+    monitor._failures.append(datetime.now(timezone.utc) - timedelta(minutes=2))
 
-    time.sleep(0.1)
     assert monitor.get_status()["recent_failures"] == 0
 
 
@@ -252,7 +252,6 @@ def test_start_health_server_end_to_end():
     Shutdown gracefully stops the server and joins the thread.
     """
     import socket
-    import time
     import urllib.error
     import urllib.request
 
