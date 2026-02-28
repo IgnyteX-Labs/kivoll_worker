@@ -193,9 +193,8 @@ def start_health_server(monitor: HealthMonitor, port: int, host: str) -> HealthS
             This might be due to the port already being in use by another process.
             Exception: {e}"""
         cli.fail(error_msg)
-        ex = RuntimeError(error_msg)
-        log_error(ex, "health:server:start", False)
-        raise ex from e
+        log_error(e, "health:server:start", False)
+        raise e
 
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
