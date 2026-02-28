@@ -30,9 +30,11 @@ from urllib.parse import quote_plus
 
 import apscheduler.events
 from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
+from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.blocking import BlockingScheduler
 from cliasi import Cliasi
+from sqlalchemy import create_engine
 
 from kivoll_worker.common.arguments import parse_schedule_args
 from kivoll_worker.common.config import get_tz
@@ -109,14 +111,15 @@ def schedule() -> int:
 
     # Connect to persistent job store
     cli.log("Connecting to job store")
-    job_store = SQLAlchemyJobStore(
+    engine = create_engine(
         url=f"postgresql+psycopg://"
         f"scheduler:{quote_plus(args.scheduler_password)}@{args.db_host}/scheduler_db"
     )
-    scheduler.add_jobstore(job_store, "scheduler")
+    scheduler.add_jobstore(SQLAlchemyJobStore(engine=engine))
+    scheduler.add_jobstore(MemoryJobStore(), "memory")
 
     # Initialize health monitor
-    monitor = HealthMonitor(db_engine=job_store.engine)
+    monitor = HealthMonitor(db_engine=engine)
 
     # Ensure all desired jobs exist and remove any stale ones
     cli.log("Reconciling scheduled jobs")
@@ -130,16 +133,14 @@ def schedule() -> int:
 
     scheduler.add_listener(_on_job_event, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
 
-    # Add a high-frequency internal heartbeat job to update liveness.
-    # We use jobstore="default" (in-memory) to avoid pickling issues
-    # and unnecessary database load for this maintenance job.
+    # Add the health monitor task to the memory jobstore, it can't persist over restarts
     scheduler.add_job(
         monitor.update_tick,
         trigger="interval",
         seconds=DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
         id="health_heartbeat",
         replace_existing=True,
-        jobstore="default",
+        jobstore="memory",
     )
 
     # Start healthcheck HTTP server
