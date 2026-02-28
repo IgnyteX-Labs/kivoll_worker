@@ -12,8 +12,14 @@ API Reference
 CLI entry points
 ====================
 
+The main kivoll_worker CLI entry points all live in the top level
+``kivoll_worker`` module and are documented below
+
 Scheduler
 ----------
+
+.. note::
+    Entry point: ``kivoll-schedule``
 
 .. automodule:: kivoll_worker.scheduler
    :members:
@@ -23,6 +29,9 @@ Scheduler
 Scraper
 --------
 
+.. note::
+    Entry point: ``kivoll-scrape``
+
 .. automodule:: kivoll_worker.scraper
    :members:
    :undoc-members:
@@ -30,6 +39,9 @@ Scraper
 
 Healthcheck Client
 -----------------------
+
+.. note::
+    Entry point: ``kivoll-healthcheck``
 
 .. automodule:: kivoll_worker.healthcheck_client
    :members:
