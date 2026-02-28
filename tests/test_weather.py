@@ -26,20 +26,17 @@ class _DummyErrors:
 
 
 class _DummyConfig:
-    def __init__(self):
-        self.json = {
-            "paths": {"data": str(pathlib.Path(".").resolve())},
-            "file": {"version": 1},
-        }
+    def __init__(self, data_dir=None):
+        self._path = (
+            str(data_dir) if data_dir is not None else str(pathlib.Path(".").resolve())
+        )
+        self.json = {"paths": {"data": self._path}, "file": {"version": 1}}
 
     def reload(self, *a, **k):
         return None
 
     def restore_default(self, *a, **k):
-        self.json = {
-            "paths": {"data": str(pathlib.Path(".").resolve())},
-            "file": {"version": 1},
-        }
+        self.json = {"paths": {"data": self._path}, "file": {"version": 1}}
 
 
 # Apply minimal stand-ins if the real ones are not set yet
@@ -283,33 +280,10 @@ def _disable_log_error_and_init_minimal_config(monkeypatch, tmp_path):
     monkeypatch.setattr(failure_mod, "log_error", lambda *a, **k: None, raising=False)
 
     # Provide a minimal _errors object with required attributes
-    class _DummyErrors:
-        def __init__(self):
-            self.json = {"errors": [], "file": {"version": 1}}
-
-        def save(self):
-            return None
-
-        def reload(self, *a, **k):
-            return None
-
-        def restore_default(self, *a, **k):
-            self.json = {"errors": [], "file": {"version": 1}}
-
     monkeypatch.setattr(failure_mod, "_errors", _DummyErrors(), raising=False)
 
     # Provide a minimal _config JSONFile-like object and data_dir
-    class _DummyConfig:
-        def __init__(self):
-            self.json = {"paths": {"data": str(tmp_path)}, "file": {"version": 1}}
-
-        def reload(self, *a, **k):
-            return None
-
-        def restore_default(self, *a, **k):
-            self.json = {"paths": {"data": str(tmp_path)}, "file": {"version": 1}}
-
-    monkeypatch.setattr(config_mod, "_config", _DummyConfig(), raising=False)
+    monkeypatch.setattr(config_mod, "_config", _DummyConfig(tmp_path), raising=False)
     monkeypatch.setattr(config_mod, "_data_dir", tmp_path, raising=False)
 
     # Also patch the weather module's imported log_error (in case it imported earlier)

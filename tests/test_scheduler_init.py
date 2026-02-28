@@ -29,6 +29,53 @@ class _StartCalled(Exception):
     pass
 
 
+class _DummyJobStore:
+    """Minimal SQLAlchemyJobStore stand-in – accepts the engine= keyword the real class uses."""
+
+    def __init__(self, *, engine=None) -> None:
+        self.engine = engine
+
+
+def _make_scheduler_cls(
+    *,
+    raises_on_start=_StartCalled,
+    captured_listeners: list | None = None,
+):
+    """Return a minimal BlockingScheduler drop-in class configured for the test.
+
+    Args:
+        raises_on_start: exception class/instance to raise from ``start()``;
+            pass ``None`` to let ``start()`` return normally.
+        captured_listeners: if a list is provided, every ``add_listener`` call
+            will append ``(listener, mask)`` to it.
+    """
+    _se = raises_on_start
+    _cl = captured_listeners
+
+    class _Scheduler:
+        def __init__(self, timezone) -> None:
+            self.timezone = timezone
+
+        def add_jobstore(self, *a, **kw) -> None:
+            pass
+
+        def add_listener(self, listener, mask: int = 0) -> None:
+            if _cl is not None:
+                _cl.append((listener, mask))
+
+        def add_job(self, *a, **kw) -> None:
+            pass
+
+        def get_jobs(self) -> list:
+            return []
+
+        def start(self) -> None:
+            if _se is not None:
+                raise _se
+
+    return _Scheduler
+
+
 def test_schedule_initialization(monkeypatch, dummy_cli) -> None:
     """schedule() creates the scheduler and job store with the correct parameters and starts it."""
     args = SimpleNamespace(
@@ -43,10 +90,17 @@ def test_schedule_initialization(monkeypatch, dummy_cli) -> None:
 
     captured: dict[str, object] = {}
 
+    mock_engine = MagicMock()
+
+    def _fake_create_engine(url, **kwargs):
+        captured["jobstore_url"] = url
+        return mock_engine
+
+    monkeypatch.setattr(sched_mod, "create_engine", _fake_create_engine)
+
     class _DummyJobStore:
-        def __init__(self, url: str) -> None:
-            captured["jobstore_url"] = url
-            self.engine = MagicMock()
+        def __init__(self, *, engine=None) -> None:
+            self.engine = engine
 
     class _DummyScheduler:
         def __init__(self, timezone) -> None:
@@ -117,31 +171,8 @@ def test_schedule_passes_health_args_to_server(monkeypatch, dummy_cli) -> None:
     monkeypatch.setattr(sched_mod, "Cliasi", lambda name: dummy_cli)
     monkeypatch.setattr(sched_mod, "get_tz", lambda cli: timezone.utc)
 
-    class _DummyJobStore:
-        def __init__(self, url: str) -> None:
-            self.engine = MagicMock()
-
-    class _DummyScheduler:
-        def __init__(self, timezone) -> None:
-            self.timezone = timezone
-
-        def add_jobstore(self, *a, **kw) -> None:
-            pass
-
-        def add_listener(self, *a, **kw) -> None:
-            pass
-
-        def add_job(self, *a, **kw) -> None:
-            pass
-
-        def get_jobs(self):
-            return []
-
-        def start(self) -> None:
-            raise _StartCalled()
-
     monkeypatch.setattr(sched_mod, "SQLAlchemyJobStore", _DummyJobStore)
-    monkeypatch.setattr(sched_mod, "BlockingScheduler", _DummyScheduler)
+    monkeypatch.setattr(sched_mod, "BlockingScheduler", _make_scheduler_cls())
     monkeypatch.setattr(sched_mod, "_reconcile_jobs", lambda s: None)
     monkeypatch.setattr(sched_mod, "HealthMonitor", MagicMock())
 
@@ -179,32 +210,12 @@ def _make_minimal_scheduler_env(monkeypatch, dummy_cli, start_side_effect=None):
     monkeypatch.setattr(sched_mod, "HealthMonitor", MagicMock())
     monkeypatch.setattr(sched_mod, "_reconcile_jobs", lambda s: None)
 
-    class _DummyJobStore:
-        def __init__(self, url: str) -> None:
-            self.engine = MagicMock()
-
-    class _DummyScheduler:
-        def __init__(self, timezone) -> None:
-            self.timezone = timezone
-
-        def add_jobstore(self, *a, **kw) -> None:
-            pass
-
-        def add_listener(self, *a, **kw) -> None:
-            pass
-
-        def add_job(self, *a, **kw) -> None:
-            pass
-
-        def get_jobs(self):
-            return []
-
-        def start(self) -> None:
-            if start_side_effect is not None:
-                raise start_side_effect
-
     monkeypatch.setattr(sched_mod, "SQLAlchemyJobStore", _DummyJobStore)
-    monkeypatch.setattr(sched_mod, "BlockingScheduler", _DummyScheduler)
+    monkeypatch.setattr(
+        sched_mod,
+        "BlockingScheduler",
+        _make_scheduler_cls(raises_on_start=start_side_effect),
+    )
 
     mock_health_server = MagicMock()
     monkeypatch.setattr(
@@ -251,10 +262,6 @@ def test_on_job_event_listener(monkeypatch, dummy_cli) -> None:
     monkeypatch.setattr(sched_mod, "Cliasi", lambda name: dummy_cli)
     monkeypatch.setattr(sched_mod, "get_tz", lambda cli: timezone.utc)
 
-    class _DummyJobStore:
-        def __init__(self, url: str) -> None:
-            self.engine = MagicMock()
-
     mock_monitor = MagicMock()
     monkeypatch.setattr(
         sched_mod, "HealthMonitor", MagicMock(return_value=mock_monitor)
@@ -262,27 +269,12 @@ def test_on_job_event_listener(monkeypatch, dummy_cli) -> None:
 
     captured_listeners: list[tuple] = []
 
-    class _DummyScheduler:
-        def __init__(self, timezone) -> None:
-            self.timezone = timezone
-
-        def add_jobstore(self, *a, **kw) -> None:
-            pass
-
-        def add_listener(self, listener, mask: int) -> None:
-            captured_listeners.append((listener, mask))
-
-        def add_job(self, *a, **kw) -> None:
-            pass
-
-        def get_jobs(self):
-            return []
-
-        def start(self) -> None:
-            raise _StartCalled()
-
     monkeypatch.setattr(sched_mod, "SQLAlchemyJobStore", _DummyJobStore)
-    monkeypatch.setattr(sched_mod, "BlockingScheduler", _DummyScheduler)
+    monkeypatch.setattr(
+        sched_mod,
+        "BlockingScheduler",
+        _make_scheduler_cls(captured_listeners=captured_listeners),
+    )
     monkeypatch.setattr(sched_mod, "_reconcile_jobs", lambda s: None)
     monkeypatch.setattr(sched_mod, "start_health_server", MagicMock())
 

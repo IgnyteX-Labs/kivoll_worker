@@ -180,7 +180,7 @@ def start_health_server(monitor: HealthMonitor, port: int, host: str) -> HealthS
     :param host: The host to bind to (default: "127.0.0.1")
     :returns:
         A :class:`HealthServer` with the running thread and a ``shutdown()`` method.
-    :raises OSError: If the specified port is already in use or cannot be bound.
+    :raises RuntimeError: If the specified port is already in use or cannot be bound.
     """
     import functools
 
@@ -194,7 +194,7 @@ def start_health_server(monitor: HealthMonitor, port: int, host: str) -> HealthS
             Exception: {e}"""
         cli.fail(error_msg)
         log_error(e, "health:server:start", False)
-        raise e
+        raise RuntimeError(error_msg) from e
 
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
