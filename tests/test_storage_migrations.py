@@ -86,6 +86,7 @@ def _ensure_worker_db(host: str, port: int, test_env: dict[str, str]) -> None:
 @pytest.mark.slow
 @pytest.mark.database
 def test_connect_accepts_storage(db_engine) -> None:
+    """storage.connect() accepts a Storage object and returns a working connection."""
     engine = _engine_from_session(db_engine)
     storage_obj = storage.Storage(engine)
 
@@ -96,6 +97,7 @@ def test_connect_accepts_storage(db_engine) -> None:
 @pytest.mark.slow
 @pytest.mark.database
 def test_connect_accepts_engine(db_engine) -> None:
+    """storage.connect() accepts a raw SQLAlchemy Engine and returns a working connection."""
     engine = _engine_from_session(db_engine)
 
     with storage.connect(engine) as conn:
@@ -105,6 +107,7 @@ def test_connect_accepts_engine(db_engine) -> None:
 @pytest.mark.slow
 @pytest.mark.database
 def test_storage_connect_creates_connection(db_engine) -> None:
+    """Storage.connect() returns a context-managed connection that can execute queries."""
     engine = _engine_from_session(db_engine)
     storage_obj = storage.Storage(engine)
 
@@ -115,6 +118,7 @@ def test_storage_connect_creates_connection(db_engine) -> None:
 @pytest.mark.slow
 @pytest.mark.database
 def test_apply_migrations_creates_tables_and_records(db_engine) -> None:
+    """_apply_migrations() creates all expected tables and records every migration file."""
     session = db_engine
     session.execute(text("CREATE SCHEMA IF NOT EXISTS public"))
     storage._apply_migrations(session.connection())
@@ -136,6 +140,7 @@ def test_apply_migrations_creates_tables_and_records(db_engine) -> None:
 @pytest.mark.slow
 @pytest.mark.database
 def test_apply_migrations_is_idempotent(db_engine) -> None:
+    """Running _apply_migrations() twice does not create duplicate migration records."""
     session = db_engine
     session.execute(text("CREATE SCHEMA IF NOT EXISTS public"))
     storage._apply_migrations(session.connection())
@@ -148,6 +153,7 @@ def test_apply_migrations_is_idempotent(db_engine) -> None:
 @pytest.mark.slow
 @pytest.mark.database
 def test_apply_migration_skips_empty_file(db_engine) -> None:
+    """_apply_migration() skips whitespace-only SQL and records nothing in the migrations table."""
     session = db_engine
     session.execute(text("CREATE SCHEMA IF NOT EXISTS public"))
     storage._ensure_migrations_table(session.connection())
@@ -160,6 +166,7 @@ def test_apply_migration_skips_empty_file(db_engine) -> None:
 @pytest.mark.slow
 @pytest.mark.database
 def test_init_db_returns_storage_and_applies_migrations(test_db, test_env) -> None:
+    """init_db() returns a Storage object and applies all migrations to a fresh database."""
     host = test_db.get_container_host_ip()
     port = int(test_db.get_exposed_port(5432))
     _ensure_worker_db(host, port, test_env)
@@ -183,6 +190,7 @@ def test_init_db_returns_storage_and_applies_migrations(test_db, test_env) -> No
 @pytest.mark.slow
 @pytest.mark.database
 def test_apply_migration_failure_raises_and_does_not_record(db_engine) -> None:
+    """_apply_migration() raises on invalid SQL and does not record the failed migration."""
     session = db_engine
     session.execute(text("CREATE SCHEMA IF NOT EXISTS public"))
     storage._ensure_migrations_table(session.connection())
@@ -205,14 +213,14 @@ def test_apply_migration_failure_raises_and_does_not_record(db_engine) -> None:
 
 @pytest.mark.slow
 @pytest.mark.database
-def test_special_characters_in_passwords(test_db) -> None:
+def test_special_characters_in_passwords(test_db, test_env) -> None:
     """Test that passwords with special characters work correctly."""
     # Test with a password containing various special characters that could
     # break SQL queries or URL parsing: quotes, semicolons, @, %, etc.
     special_password = "p@ss'w;rd%123&test=value"
-    admin_user = "testadmin"
-    admin_password = "testadminpass"
-    admin_db = "postgres"
+    admin_user = test_env["POSTGRES_USER"]
+    admin_password = test_env["POSTGRES_PASSWORD"]
+    admin_db = test_env["POSTGRES_DB"]
 
     host = test_db.get_container_host_ip()
     port = int(test_db.get_exposed_port(5432))

@@ -12,9 +12,14 @@ from testcontainers.core.container import DockerContainer
 from testcontainers.core.network import Network
 
 from conftest import _build_container, _wait_for_db_ready
-from kivoll_worker import __version__
 
 DATABASE_IMG = "ghcr.io/ignytex-labs/kivoll_db:0.1.0"
+
+# Fixed sentinel version used when building the worker image for tests.
+# Using a constant keeps tests hermetic (independent of the local git state)
+# and validates that the VERSION build-arg is correctly propagated through
+# SETUPTOOLS_SCM_PRETEND_VERSION all the way to the installed package.
+TEST_VERSION = "0.0.0"
 
 
 @dataclass(frozen=True)
@@ -43,12 +48,12 @@ def test_dockerfile_general(built_db_image):
     config = data[0]["Config"]
 
     # Check CMD
-    assert config["Cmd"] == ["uv", "run", "kivoll-schedule", "--verbose"]
+    assert config["Cmd"] == ["kivoll-schedule", "--verbose"]
 
     # Check healthcheck
     healthcheck = config.get("Healthcheck")
     assert healthcheck is not None
-    assert healthcheck["Test"] == ["CMD", "/app/healthcheck.sh"]
+    assert healthcheck["Test"] == ["CMD", "kivoll-healthcheck"]
 
 
 @pytest.fixture(scope="session")
@@ -90,7 +95,15 @@ def built_db_image(
 ) -> Generator[BuiltImage, Any, None]:
     # Run docker build and record output; don't fail the fixture immediately.
     result = subprocess.run(
-        ["docker", "build", "-t", db_image_tag, str(BUILD_CONTEXT)],
+        [
+            "docker",
+            "build",
+            "--build-arg",
+            f"VERSION={TEST_VERSION}",
+            "-t",
+            db_image_tag,
+            str(BUILD_CONTEXT),
+        ],
         capture_output=True,
         text=True,
     )
@@ -113,6 +126,7 @@ def built_db_image(
 def test_worker_image_gets_healthy(
     built_db_image, postgres_container, test_env: dict[str, str], get_network: Network
 ):
+    """Integration test: verify the worker container reaches the 'healthy' Docker health status."""
     # Skip this integration test if the image build failed.
     if not built_db_image.ok:
         pytest.skip("Docker build failed; skipping integration test")
@@ -122,14 +136,20 @@ def test_worker_image_gets_healthy(
     container.with_env("DB_HOST", "db:5432")
     try:
         container.start()
-        # Wait for health status to be healthy
-        deadline = time.time() + 70
-        # the first health check is after 60 seconds
+        # With --start-period=10s and --interval=10s the first healthy result
+        # arrives within ~20 s; 60 s gives comfortable headroom for 3 retries.
+        deadline = time.time() + 60
         underlying_container = container.get_wrapped_container()
         while time.time() < deadline:
             underlying_container.reload()
             if underlying_container.status == "exited":
-                break
+                try:
+                    logs = container.get_logs()
+                except Exception as exc:
+                    logs = f"Could not retrieve logs: {exc}"
+                pytest.fail(
+                    f"Container exited unexpectedly before becoming healthy\n{logs}"
+                )
             if underlying_container.health == "healthy":
                 return
             time.sleep(1)
@@ -145,7 +165,9 @@ def test_worker_image_gets_healthy(
 @pytest.mark.slow
 @pytest.mark.integration
 def test_built_dockerfile(built_db_image: BuiltImage):
+    """Verify that the Docker image was built successfully and is present in the local registry."""
     # Skip assertions if build failed; other tests may handle failure details.
+
     if not built_db_image.ok:
         pytest.fail(
             "Docker build failed; skipping dockerfile tests\n"
@@ -166,25 +188,65 @@ def test_built_dockerfile(built_db_image: BuiltImage):
     assert built_db_image.stdout or built_db_image.stderr, "docker build output missing"
 
 
-@pytest.mark.slow
-@pytest.mark.integration
-def test_container_version_matches_project(built_db_image: BuiltImage):
-    """Test that the version output from the container matches the project version."""
-    if not built_db_image.ok:
-        pytest.skip("Docker build failed; skipping version test")
+@pytest.fixture(scope="session")
+def container_package_installed(built_db_image: BuiltImage) -> bool:
+    """Return True if kivoll_worker is importable inside the built image.
 
-    # Run the container and execute the version command
+    Skips automatically if the image build itself failed.
+    """
+    if not built_db_image.ok:
+        pytest.skip("Docker build failed; skipping package installation check")
+
     result = subprocess.run(
         [
             "docker",
             "run",
             "--rm",
             built_db_image.tag,
-            "uv",
-            "run",
-            "kivoll-scrape",
-            "--version",
+            "python",
+            "-c",
+            "import kivoll_worker",
         ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    return result.returncode == 0
+
+
+@pytest.mark.slow
+@pytest.mark.integration
+def test_container_package_installed(
+    built_db_image: BuiltImage, container_package_installed: bool
+):
+    """Test that the kivoll_worker package is importable inside the container."""
+    assert container_package_installed, (
+        "kivoll_worker is not importable in the container — "
+        "the wheel may not have been installed correctly.\n"
+        f"Build stderr: {built_db_image.stderr}"
+    )
+
+
+@pytest.mark.slow
+@pytest.mark.integration
+def test_container_version_matches_project(
+    built_db_image: BuiltImage, container_package_installed: bool
+):
+    """Test that the version baked into the image matches the TEST_VERSION build-arg.
+
+    This validates the full chain:
+      --build-arg VERSION=<ver>  →  SETUPTOOLS_SCM_PRETEND_VERSION  →  installed package
+    The entry-point is invoked directly from the venv (no `uv run` overhead)
+    because the runtime image does not have a project context for uv to resolve.
+    """
+    if not built_db_image.ok:
+        pytest.skip("Docker build failed; skipping version test")
+    if not container_package_installed:
+        pytest.skip("Package not importable; skipping version test")
+
+    # kivoll-scrape is on PATH via /app/.venv/bin (set in the Dockerfile).
+    result = subprocess.run(
+        ["docker", "run", "--rm", built_db_image.tag, "kivoll-scrape", "--version"],
         capture_output=True,
         text=True,
         timeout=30,
@@ -194,11 +256,10 @@ def test_container_version_matches_project(built_db_image: BuiltImage):
         f"Failed to get version from container: {result.stderr}"
     )
 
-    # Extract version from command output (typically "kivoll_worker <version>")
+    # Output is typically "kivoll_worker <version>"
     container_version = result.stdout.strip().split()[-1]
 
-    # Compare with project version
-    assert container_version == __version__, (
+    assert container_version == TEST_VERSION, (
         f"Container version '{container_version}' "
-        f"does not match project version '{__version__}'"
+        f"does not match expected build version '{TEST_VERSION}'"
     )

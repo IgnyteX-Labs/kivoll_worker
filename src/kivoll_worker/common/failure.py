@@ -81,7 +81,8 @@ def init_errors_db() -> None:
         # File exists but contains invalid JSON
         cli.fail(
             f"errors.json at {config.data_dir() / 'errors.json'} is malformed JSON.\n"
-            f"Will save copy and create new file."
+            f"Will save copy and create new file.",
+            messages_stay_in_one_line=False,
         )
         cli.animate_message_blocking(
             "errors.json is malformed. Restoring default database!", 3
@@ -136,21 +137,24 @@ def __errors_migrations() -> None:
             case _:
                 cli.fail(
                     f"Errors file version {version} is unknown. Maybe too new?\n"
-                    f"Will revert to default Errors file."
+                    f"Will revert to default Errors file.",
+                    messages_stay_in_one_line=False,
                 )
                 __default_file()
                 return
     except ValueError:
         cli.fail(
             f"Errors file version is not an integer (got {version})\n"
-            f"Will revert to default Errors file."
+            f"Will revert to default Errors file.",
+            messages_stay_in_one_line=False,
         )
         __default_file()
         return
     except KeyError:
         cli.fail(
             "errors.json is malformed, missing 'file.version' key\n"
-            "Will revert to default Errors file."
+            "Will revert to default Errors file.",
+            messages_stay_in_one_line=False,
         )
         __default_file()
         return

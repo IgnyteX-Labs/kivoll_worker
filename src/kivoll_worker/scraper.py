@@ -13,7 +13,7 @@ Scrape Targets:
 Entry Points:
     - `kivoll-scrape`: Run scraping manually or for specific targets
 
-Example::
+Example:
     $ kivoll-scrape --targets=weather,kletterzentrum --verbose
     $ kivoll-scrape --list-targets
     $ kivoll-scrape  # Auto-selects targets based on current time
@@ -74,7 +74,10 @@ def _parse_time_of_day(raw: str, cli: Cliasi) -> time:
         hours, minutes = raw.split(":", maxsplit=1)
         return time(hour=int(hours), minute=int(minutes))
     except Exception as exc:  # noqa: BLE001
-        cli.fail("Invalid time for --time-of-day, expected HH:MM")
+        cli.fail(
+            "Invalid time for --time-of-day, expected HH:MM",
+            messages_stay_in_one_line=False,
+        )
         log_error(exc, "scraper:time-of-day:parse", False)
         raise
 
@@ -207,7 +210,7 @@ def main() -> int:
         ref_time = _reference_time(args.time_of_day, cli)
     except Exception as e:
         log_error(e, "scraper:time-of-day:resolve", False)
-        cli.fail("Could not resolve time of day")
+        cli.fail("Could not resolve time of day", messages_stay_in_one_line=False)
         return 1
 
     # Resolve which targets to scrape

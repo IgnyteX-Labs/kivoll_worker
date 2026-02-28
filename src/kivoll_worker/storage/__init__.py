@@ -119,7 +119,10 @@ def _apply_migration(
         cli.success(f"Applied migration {filepath}")
     except Exception as e:
         conn.rollback()
-        cli.fail(f"Failed to apply migration {filepath}: {e}")
+        cli.fail(
+            f"Failed to apply migration {filepath}: {e}",
+            messages_stay_in_one_line=False,
+        )
         raise
 
 

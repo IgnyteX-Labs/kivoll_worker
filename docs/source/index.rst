@@ -3,7 +3,7 @@ Welcome to the kivoll_worker documentation!
 
 kivoll_worker is a set of tools to automate occupancy data collection.
 
-Currently it tracks the following tings:
+Currently it tracks the following things:
 - Scrapes occupancy data from Kletterzentrum Innsbruck
 - Scrapes weather forecast data from Open-Meteo
 
@@ -28,7 +28,7 @@ To install the latest version directly from the repository, run:
 
 .. code-block:: bash
 
-    git clone https://ignytex-labs/kivoll_worker.git
+    git clone https://github.com/ignytex-labs/kivoll_worker.git
     cd kivoll_worker
     uv sync
 

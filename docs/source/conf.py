@@ -95,17 +95,12 @@ rst_prolog = f"""
 
 extensions = [
     "sphinx.ext.autodoc",
-    "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
     "sphinx.ext.githubpages",
-    "sphinx.ext.apidoc",
     "sphinx_substitution_extensions",
 ]
-
-# Autosummary: generate stub pages for autosummary directives
-autosummary_generate = True
 
 templates_path = ["_templates"]
 exclude_patterns = []

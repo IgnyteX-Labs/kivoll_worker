@@ -1,13 +1,13 @@
 # kivoll_worker
 
-[![GitHub issues](https://img.shields.io/github/issues/IgnyteX-Labs/kivoll_worker)](https://github.com/IgnyteX-Labs/kivoll_worker/issues)
-[![Build status](https://img.shields.io/github/actions/workflow/status/ignytex-labs/kivoll_worker/test.yml)](https://github.com/IgnyteX-Labs/kivoll_worker/actions)
-[![codecov](https://img.shields.io/codecov/c/github/ignytex-labs/kivoll_worker)](https://app.codecov.io/gh/IgnyteX-Labs/kivoll_worker/)
-[![latest release](https://img.shields.io/github/v/release/IgnyteX-Labs/kivoll_worker)](https://github.com/IgnyteX-Labs/kivoll_worker/releases)
+[![GitHub issues](https://img.shields.io/github/issues/ignyteX-Labs/kivoll_worker)](https://github.com/ignyteX-Labs/kivoll_worker/issues)
+[![Build status](https://img.shields.io/github/actions/workflow/status/ignyteX-Labs/kivoll_worker/test.yml)](https://github.com/ignyteX-Labs/kivoll_worker/actions)
+[![codecov](https://img.shields.io/codecov/c/github/ignyteX-Labs/kivoll_worker)](https://app.codecov.io/gh/ignyteX-Labs/kivoll_worker/)
+[![latest release](https://img.shields.io/github/v/release/ignyteX-Labs/kivoll_worker)](https://github.com/ignyteX-Labs/kivoll_worker/releases)
 
 kivoll_worker is a set of tools to automate occupancy data collection.
 
-It is a part of the overall kivoll project (see [kivoll_infra](https://github.com/Ignytex-Labs/kivoll_infra) for more
+It is a part of the overall kivoll project (see [kivoll_infra](https://github.com/ignyteX-Labs/kivoll_infra) for more
 information).
 
 ## Features

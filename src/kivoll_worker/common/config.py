@@ -10,7 +10,7 @@ and resolves user-defined data directory paths and timezones.
 .. note::
     ``init_config()`` must be called before ``config()`` or ``data_dir()`` are used.
 
-Example::
+Example:
     >>> from kivoll_worker.common.config import init_config, config, data_dir
     >>> init_config("data/config.json")
     >>> print(config()["modules"]["weather"]["url"])
@@ -62,7 +62,7 @@ def config() -> Any:
     :rtype: dict[str, Any]
     :raises RuntimeError: When ``init_config()`` was not called.
 
-    Example::
+    Example:
         >>> cfg = config()
         >>> weather_url = cfg["modules"]["weather"]["url"]
     """
@@ -75,7 +75,7 @@ def data_dir() -> Path:
     """
     Return the resolved data directory path.
 
-    :returns: Absolute path where runtime files (databases, heartbeat, cached HTML) live
+    :returns: Absolute path where runtime files (databases, cached HTML) live
     :rtype: Path
     :raises RuntimeError: When ``init_config()`` was not called.
     """
@@ -122,7 +122,8 @@ def init_config(config_path: str) -> None:
         # We can recover by reverting to default
         cli.fail(
             f"Config file at {config_path} is malformed JSON.\n"
-            f"Will revert to default config."
+            f"Will revert to default config.",
+            messages_stay_in_one_line=False,
         )
         __default_config()
 
@@ -177,21 +178,24 @@ def __config_migrations() -> None:
             case _:
                 cli.fail(
                     f"Config version {version} is unknown. Maybe too new?\n"
-                    f"Will revert to default config."
+                    f"Will revert to default config.",
+                    messages_stay_in_one_line=False,
                 )
                 __default_config()
                 return
     except ValueError:
         cli.fail(
             f"Config version is not an integer (got {version})\n"
-            f"Will revert to default config."
+            f"Will revert to default config.",
+            messages_stay_in_one_line=False,
         )
         __default_config()
         return
     except KeyError:
         cli.fail(
             "config.json is malformed, missing 'config.version' key\n"
-            "Will revert to default config."
+            "Will revert to default config.",
+            messages_stay_in_one_line=False,
         )
         __default_config()
         return
@@ -207,7 +211,7 @@ def get_tz(cli: Cliasi) -> tzinfo | ZoneInfo | None:
         or ``None`` if resolution fails.
     :rtype: tzinfo | ZoneInfo | None
 
-    Example::
+    Example:
         >>> from kivoll_worker.common.config import get_tz
         >>> tz = get_tz(cli)
         >>> now = datetime.now(tz)

@@ -17,8 +17,8 @@ Install dependencies with ``uv``
 
     uv sync
 
-.. error::
-    SQLite support was dropped in v0.1.1
+.. deprecated:: 0.1.1
+    SQLite support - you will need the kivoll_db container. (See below)
 
 
 Set up environment variables
@@ -32,10 +32,10 @@ under ``.env.example`` and adjust it to your needs.
     cp .env.example .env
     # Edit .env as needed
 
-Running the database
+Running kivoll_db
 ~~~~~~~~~~~~~~~~~~~~~
 Other parts of the kivoll project, such as the API server also require a running
-a database.
+the kivoll_db.
 
 The database you are about to start will be shared across all projects.
 
@@ -52,6 +52,9 @@ with the default credentials specified in ``.env`` (the one you copied and modif
     The database requires a few environment variables to be set in order to initialize.
     The database might have updated, so look for new environment variables
     in the ``.env.example`` file and add them to your ``.env`` file.
+
+Running kivoll
+----------------
 
 Run with environment variables set
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -85,11 +88,50 @@ environment variables set from ``.env``.
     The code will be mounted inside the container, so any changes you make to the code
     will be reflected inside the container instantly.
 
+.. warning::
+    The local.Dockerfile will sync the dependencies in a build step so if you add
+    dependencies, you will need to rebuild the image to add them to the cache.
+
 If you want to run the container in detached mode, you can use
 
 .. code-block:: bash
 
     make docker-headless
+
+Docker configuration
+---------------------
+
+Docker files
+~~~~~~~~~~~~~~
+* The local.Dockerfile is intended for local development and testing.
+  It needs the code to be mounted inside the container to be able to
+  reflect live changes instantly.
+
+* Dockerfile is intended for production use
+  and is used in the CI/CD pipeline to build the kivoll_worker image
+  and push it to GitHub Container Registry.
+
+Docker stages
+~~~~~~~~~~~~~~~
+1. Both Dockerfiles fetch the project dependencies into a cache. (``deps`` stage)
+2. The Dockerfile then builds a wheel. (``builder`` stage)
+3. In runtime, both containers copy the dependency stage cache and install the project.
+
+Healthcheck
+~~~~~~~~~~~~~~~
+Both Dockerfiles include a healthcheck.
+``kivoll-schedule`` runs a small HTTP server which can be
+checked using the ``kivoll-healthcheck`` command.
+
+Running the healthcheck command will check if
+``kivoll-schedule`` is running and healthy.
+
+.. code-block:: bash
+
+    kivoll-healthcheck
+
+This command returns 0 if the ``kivoll-schedule`` is healthy and running,
+and a non-zero code otherwise.
 
 
 Deploy to ghcr.io

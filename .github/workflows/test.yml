@@ -16,6 +16,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # full history so setuptools-scm can infer the version
 
       - name: Set up Python
         uses: actions/setup-python@v6

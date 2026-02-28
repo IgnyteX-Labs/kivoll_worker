@@ -20,7 +20,7 @@ from .. import __short_version__
 from ..common import config
 from ..common.config import get_tz
 from ..common.failure import log_error
-from .session import create_scrape_session
+from .session import DEFAULT_TIMEOUT, create_scrape_session
 
 cli: Cliasi = Cliasi("uninitialized")
 
@@ -235,7 +235,10 @@ def kletterzentrum(args: Namespace, connection: Connection) -> bool:
         ):
             url = config.config()["modules"]["kletterzentrum"]["url"]
         else:
-            cli.fail("Could not retrieve url to use (malformed config)")
+            cli.fail(
+                "Could not retrieve url to use (malformed config)",
+                messages_stay_in_one_line=False,
+            )
             log_error(
                 ValueError("Could not retrieve url to use (malformed config)"),
                 "kletterzentrum:fetch:url_error",
@@ -252,8 +255,14 @@ def kletterzentrum(args: Namespace, connection: Connection) -> bool:
             task.update("Fetch complete, checking response") if task else None
             response.raise_for_status()
             resp = response.text
+        except niquests.exceptions.Timeout as e:
+            cli.fail(
+                f"Request timed out after {DEFAULT_TIMEOUT} seconds!",
+                messages_stay_in_one_line=False,
+            )
+            log_error(e, "kletterzentrum:fetch:timeout", False)
+            return False
         except niquests.exceptions.HTTPError as e:
-            task.stop() if task else None
             cli.fail(
                 "Could not fetch data for Kletterzentrum!",
                 messages_stay_in_one_line=False,
@@ -262,9 +271,9 @@ def kletterzentrum(args: Namespace, connection: Connection) -> bool:
             return False
 
         finally:
+            task.stop() if task else None
             session.close()
 
-        task.stop() if task else None
         cli.success("Kletterzentrum website fetched", logging.DEBUG)
         cli.info("Writing html to data/last_request.html")
         html = ""

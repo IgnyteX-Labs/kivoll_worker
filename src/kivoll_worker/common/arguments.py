@@ -8,7 +8,7 @@ This module provides argument parsing helpers for each CLI entry point:
 Each parser adds the shared options ``--verbose``, ``--warn-only``, and
 ``--config-path`` before initializing configuration and error tracking.
 
-Example::
+Example:
     >>> from kivoll_worker.common.arguments import parse_scrape_args
     >>> args = parse_scrape_args()
     >>> if args.dry_run:
@@ -181,11 +181,13 @@ def _parse_common_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
                 continue
             cli.fail(
                 f"{env_var} is not set. Will use default value '{default}',"
-                " which is unsafe and will not run."
+                " which is unsafe and will not run.",
+                messages_stay_in_one_line=False,
             )
             cli.fail(
                 "Please set a secure password in .env or pass "
-                "--allow-insecure-defaults to continue."
+                "--allow-insecure-defaults to continue.",
+                messages_stay_in_one_line=False,
             )
             args.__setattr__(var_name, default)
             raise SystemExit(1)
@@ -196,11 +198,13 @@ def _parse_common_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
                 continue
             cli.fail(
                 f"{env_var} is set to the default value '{default}'."
-                " This is unsafe - the program will not run."
+                " This is unsafe - the program will not run.",
+                messages_stay_in_one_line=False,
             )
             cli.fail(
                 "Please set a secure password in .env or pass "
-                "--allow-insecure-defaults to continue."
+                "--allow-insecure-defaults to continue.",
+                messages_stay_in_one_line=False,
             )
             raise SystemExit(1)
         else:
@@ -227,6 +231,20 @@ def parse_schedule_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="kivoll-schedule",
         description="Kletterzentrum Innsbruck Auslastungsmonitor - job scheduler",
+    )
+    parser.add_argument(
+        "--health-port",
+        dest="health_port",
+        type=int,
+        default=8000,
+        help="Port for the healthcheck HTTP server (default: 8000)",
+    )
+    parser.add_argument(
+        "--health-host",
+        dest="health_host",
+        type=str,
+        default="127.0.0.1",
+        help="Host/interface for the healthcheck HTTP server (default: 127.0.0.1)",
     )
     return _parse_common_args(parser)
 

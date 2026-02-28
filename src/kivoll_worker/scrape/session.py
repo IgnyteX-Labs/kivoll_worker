@@ -7,6 +7,7 @@ from niquests.adapters import HTTPAdapter
 
 TOTAL_RETRIES = 3
 STATUS_FORCELIST = [429, 500, 502, 503, 504]
+DEFAULT_TIMEOUT = 30
 
 
 class CachedSession(requests_cache.session.CacheMixin, niquests.Session):  # type: ignore[misc]
@@ -24,13 +25,14 @@ def create_cached_scrape_session(
     cache_name: str = ".cache",
 ) -> CachedSession:
     """
-    Create a CachedSession with cache expiration time and retries configured.
+    Create a CachedSession with cache expiration time, retries, and timeout configured.
     :param cache_expire_after: The expiration time for the cache.
     :param cache_name: The cache name/path to use (default: ".cache").
-    :return: A CachedSession instance with retries configured.
+    :return: A CachedSession instance with retries and timeout configured.
     """
     session = CachedSession(cache_name, expire_after=cache_expire_after)
     set_retries_property(session)
+    set_timeout_property(session)
     return session
 
 
@@ -65,11 +67,25 @@ def set_retries_property(session: niquests.Session | CachedSession) -> None:
     session.mount("https://", adapter)
 
 
+def set_timeout_property(session: niquests.Session | CachedSession) -> None:
+    """
+    Set the timeout property on a Session to return the default timeout value.
+
+    :param session: The session to set the timeout property on.
+    """
+
+    # Add to config but when config has been reworked.
+    # I dont want config check code here...
+
+    session.timeout = DEFAULT_TIMEOUT
+
+
 def create_scrape_session() -> niquests.Session:
     """
-    Create a default niquests Session with retries configured.
-    :return: A niquests Session instance with retries configured.
+    Create a default niquests Session with retries and timeout configured.
+    :return: A niquests Session instance with retries and timeout configured.
     """
     session = niquests.Session()
     set_retries_property(session)
+    set_timeout_property(session)
     return session

@@ -58,9 +58,7 @@ dependencies = [
     "apscheduler>=3.11.2",
     "argparse>=1.4.0",
     "cliasi>=0.4.2",
-    "numpy>=2.2.6",
     "openmeteo-requests>=1.7.5",
-    "pandas>=3.0.0",
     "singlejson>=0.5.2",
     "sqlalchemy>=2.0.45",
     "psycopg[binary]>3.1",
@@ -72,11 +70,12 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/ignyteX-Labs/kivoll_worker"
 Issues = "https://github.com/ignyteX-Labs/kivoll_worker/issues"
-Documentation = "https://ignytex-labs.github.io/kivoll_worker/"
+Documentation = "https://ignyteX-Labs.github.io/kivoll_worker/"
 
 [project.scripts]
 kivoll-schedule = "kivoll_worker.scheduler:main"
 kivoll-scrape = "kivoll_worker.scraper:main"
+kivoll-healthcheck = "kivoll_worker.healthcheck_client:main"
 
 [tool.setuptools_scm]
 write_to = "src/kivoll_worker/_version.py"
@@ -119,7 +118,7 @@ select = ["E", "F", "I", "B", "UP"]
 
 [tool.mypy]
 strict = true
-python_version = "3.10"
+python_version = "3.12"
 
 [[tool.mypy.overrides]]
 module = [
