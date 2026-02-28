@@ -53,7 +53,7 @@ def test_dockerfile_general(built_db_image):
     # Check healthcheck
     healthcheck = config.get("Healthcheck")
     assert healthcheck is not None
-    assert healthcheck["Test"] == ["CMD", "/app/healthcheck.sh"]
+    assert healthcheck["Test"] == ["CMD", "kivoll-healthcheck"]
 
 
 @pytest.fixture(scope="session")
@@ -126,6 +126,7 @@ def built_db_image(
 def test_worker_image_gets_healthy(
     built_db_image, postgres_container, test_env: dict[str, str], get_network: Network
 ):
+    """Integration test: verify the worker container reaches the 'healthy' Docker health status."""
     # Skip this integration test if the image build failed.
     if not built_db_image.ok:
         pytest.skip("Docker build failed; skipping integration test")
@@ -135,14 +136,20 @@ def test_worker_image_gets_healthy(
     container.with_env("DB_HOST", "db:5432")
     try:
         container.start()
-        # Wait for health status to be healthy
-        deadline = time.time() + 70
-        # the first health check is after 60 seconds
+        # With --start-period=10s and --interval=10s the first healthy result
+        # arrives within ~20 s; 60 s gives comfortable headroom for 3 retries.
+        deadline = time.time() + 60
         underlying_container = container.get_wrapped_container()
         while time.time() < deadline:
             underlying_container.reload()
             if underlying_container.status == "exited":
-                break
+                try:
+                    logs = container.get_logs()
+                except Exception as exc:
+                    logs = f"Could not retrieve logs: {exc}"
+                pytest.fail(
+                    f"Container exited unexpectedly before becoming healthy\n{logs}"
+                )
             if underlying_container.health == "healthy":
                 return
             time.sleep(1)
@@ -158,7 +165,9 @@ def test_worker_image_gets_healthy(
 @pytest.mark.slow
 @pytest.mark.integration
 def test_built_dockerfile(built_db_image: BuiltImage):
+    """Verify that the Docker image was built successfully and is present in the local registry."""
     # Skip assertions if build failed; other tests may handle failure details.
+
     if not built_db_image.ok:
         pytest.fail(
             "Docker build failed; skipping dockerfile tests\n"

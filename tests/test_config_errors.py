@@ -11,6 +11,7 @@ import kivoll_worker.common.failure as failure_mod
 
 
 def test_config_runtimeerror_before_init(monkeypatch):
+    """RuntimeError is raised when config() or data_dir() is called before init_config()."""
     monkeypatch.setattr(config_mod, "_config", None)
     monkeypatch.setattr(config_mod, "_data_dir", None)
     with pytest.raises(RuntimeError):
@@ -20,6 +21,7 @@ def test_config_runtimeerror_before_init(monkeypatch):
 
 
 def test_init_config_valid(tmp_path, monkeypatch):
+    """init_config() succeeds with a well-formed config file and sets version and data_dir."""
     config_path = tmp_path / "config.json"
     config_path.write_text(
         "{\n"
@@ -37,6 +39,7 @@ def test_init_config_valid(tmp_path, monkeypatch):
 
 
 def test_init_config_malformed(monkeypatch, tmp_path):
+    """init_config() recovers from malformed JSON by restoring the default and calling cli.fail."""
     config_path = tmp_path / "bad.json"
     config_path.write_text("{ this is not valid json }")
     cli_fail = mock.Mock()
@@ -75,6 +78,7 @@ def test_init_config_malformed(monkeypatch, tmp_path):
 
 @pytest.mark.parametrize("bad_version", ["notanint"])
 def test_init_config_bad_version(monkeypatch, tmp_path, bad_version):
+    """init_config() recovers and calls cli.fail when the version field is a non-integer."""
     config_path = tmp_path / "badver.json"
     file_block = f'"version": "{bad_version}",'
     config_path.write_text(
@@ -120,6 +124,7 @@ def test_init_config_bad_version(monkeypatch, tmp_path, bad_version):
 
 
 def test_init_config_bad_version_none(monkeypatch, tmp_path):
+    """init_config() recovers and calls cli.fail when the version key is absent."""
     config_path = tmp_path / "badver.json"
     # No version key at all
     config_path.write_text(
@@ -165,6 +170,7 @@ def test_init_config_bad_version_none(monkeypatch, tmp_path):
 
 
 def test_init_config_unknown_version(monkeypatch, tmp_path):
+    """init_config() calls cli.fail or cli.warn when the config version is not recognised."""
     config_path = tmp_path / "unknownver.json"
     config_path.write_text(
         "{\n"
@@ -209,6 +215,7 @@ def test_init_config_unknown_version(monkeypatch, tmp_path):
 
 
 def test_get_tz(monkeypatch, tmp_path):
+    """get_tz() returns a valid timezone for valid, empty, and unknown timezone strings."""
     config = {
         "general": {"timezone": "UTC"},
         "file": {"version": 1},
@@ -239,6 +246,7 @@ def make_errors_json(tmp_path, version=1):
 
 
 def test_init_errors_db_valid(tmp_path, monkeypatch):
+    """init_errors_db() succeeds with a valid errors.json and sets _errors correctly."""
     make_errors_json(tmp_path)
     monkeypatch.setattr(config_mod, "data_dir", lambda: tmp_path)
     monkeypatch.setattr(failure_mod, "_errors", None)
@@ -247,6 +255,7 @@ def test_init_errors_db_valid(tmp_path, monkeypatch):
 
 
 def test_init_errors_db_malformed(tmp_path, monkeypatch):
+    """init_errors_db() recovers from a malformed errors.json without raising."""
     errors_path = tmp_path / "errors.json"
     errors_path.write_text("{ this is not valid json }")
     monkeypatch.setattr(config_mod, "data_dir", lambda: tmp_path)
@@ -278,6 +287,7 @@ def test_init_errors_db_malformed(tmp_path, monkeypatch):
 
 
 def test_init_errors_db_bad_version(monkeypatch, tmp_path):
+    """init_errors_db() recovers and warns when the version field is a non-integer."""
     errors_path = tmp_path / "errors.json"
     errors_path.write_text('{\n  "file": { "version": "notanint" },\n  "errors": []\n}')
     monkeypatch.setattr(config_mod, "data_dir", lambda: tmp_path)
@@ -308,6 +318,7 @@ def test_init_errors_db_bad_version(monkeypatch, tmp_path):
 
 
 def test_init_errors_db_unknown_version(monkeypatch, tmp_path):
+    """init_errors_db() warns or fails when the errors file has an unrecognised version."""
     errors_path = tmp_path / "errors.json"
     errors_path.write_text('{\n  "file": {"version": 999},\n  "errors": []\n}')
     monkeypatch.setattr(config_mod, "data_dir", lambda: tmp_path)
@@ -337,6 +348,7 @@ def test_init_errors_db_unknown_version(monkeypatch, tmp_path):
 
 
 def test_log_error(monkeypatch, tmp_path):
+    """log_error() appends a structured error entry and persists it via save()."""
     make_errors_json(tmp_path)
 
     class DummyErrors:
