@@ -5,12 +5,12 @@ This module implements a cron-based scheduler using APScheduler
 to run scraping jobs at the configured intervals.
 It manages periodic weather collection outside climbing hours,
 Kletterzentrum occupancy scraping during opening hours,
-a heartbeat file for Docker healthchecks, and persistent job storage.
+a health service for Docker healthchecks, and persistent job storage.
 
 Features:
     - Periodic weather data collection (outside climbing hours)
     - Kletterzentrum occupancy scraping (during opening hours)
-    - Heartbeat file updates for Docker health checks
+    - Health service for Docker healthchecks
     - Persistent job storage in PostgreSQL
 
 Entry Points:
@@ -98,7 +98,9 @@ def schedule() -> int:
     - parse CLI arguments and configure logging
     - create a :class:`BlockingScheduler` in the configured timezone
     - connect to the persistent job store and reconcile the desired jobs
-    - write an initial heartbeat file and start the scheduler
+    - start the HealthMonitor and its heartbeat task
+    - start the healthcheck HTTP server
+    - start the scheduler (blocking until interrupted)
 
     :returns: 0 for a successful run.
     :rtype: int
@@ -125,7 +127,7 @@ def schedule() -> int:
     cli.log("Reconciling scheduled jobs")
     _reconcile_jobs(scheduler)
 
-    # Update heartbeat after each job execution (success or failure)
+    # Update failure records and heartbeat on job completion or error
     def _on_job_event(event: apscheduler.events.JobExecutionEvent) -> None:
         if event.code == EVENT_JOB_ERROR:
             monitor.record_failure()
