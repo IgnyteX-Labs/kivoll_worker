@@ -233,6 +233,8 @@ def test_start_health_server_custom_host_binds_all_interfaces():
     assert bind_address == ("0.0.0.0", 8000)
 
 
+@pytest.mark.slow
+@pytest.mark.database
 def test_health_monitor_check_db_with_real_postgres(pg_engine):
     """check_db executes SELECT 1 against a live PostgreSQL instance and returns True."""
     monitor = HealthMonitor(db_engine=pg_engine)
