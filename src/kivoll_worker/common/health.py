@@ -189,11 +189,9 @@ def start_health_server(monitor: HealthMonitor, port: int, host: str) -> HealthS
     try:
         server = http.server.ThreadingHTTPServer((host, port), handler_factory)
     except OSError as e:
-        error_msg = (
-            f"Failed to start healthcheck server on port {port}: "
-            f"The port is already in use. "
-            f"Please choose a different port or stop the process using port {port}."
-        )
+        error_msg = f"""Failed to start healthcheck server on port {port}
+            This might be due to the port already being in use by another process.
+            Exception: {e}"""
         cli.fail(error_msg)
         ex = RuntimeError(error_msg)
         log_error(ex, "health:server:start", False)
