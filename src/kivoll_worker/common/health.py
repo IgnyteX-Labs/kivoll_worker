@@ -194,7 +194,7 @@ def start_health_server(monitor: HealthMonitor, port: int, host: str) -> HealthS
             Exception: {e}"""
         cli.fail(error_msg)
         log_error(e, "health:server:start", False)
-        raise RuntimeError(error_msg) from e
+        raise
 
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()

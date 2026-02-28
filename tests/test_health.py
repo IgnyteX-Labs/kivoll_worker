@@ -311,11 +311,10 @@ def test_start_health_server_raises_on_port_in_use(monkeypatch):
     sock.listen(1)
 
     try:
-        with pytest.raises(RuntimeError) as exc_info:
+        with pytest.raises(OSError):
             start_health_server(monitor, port=occupied_port, host="127.0.0.1")
     finally:
         sock.close()
 
-    assert str(occupied_port) in str(exc_info.value)
     assert fail_messages, "cli.fail should have been called"
     assert str(occupied_port) in fail_messages[0]
